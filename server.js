@@ -316,6 +316,14 @@ io.on('connection', (socket) => {
 
     room.nightLogs.push(logMessage);
 
+    // Xử lý riêng cho Thần tình yêu: lưu cặp đôi vào phòng
+    if (actingPlayer.role === 'THAN_TINH_YEU' && actionType !== 'SKIP' && target1 && target2) {
+      room.coupledPlayers = [target1.id, target2.id];
+      const coupleMsg = `${getFormattedTimestamp()} 💘 [SỰ KIỆN] Thần tình yêu đã ghép đôi ${target1.name} và ${target2.name}. Họ sẽ sống chết có nhau!`;
+      room.nightLogs.push(coupleMsg);
+      // Gửi role bí mật cho cả 2 để họ biết mình bị ghép đôi (tuỳ chọn, nhưng hiện tại chỉ lưu log để tính toán cái chết)
+    }
+
     const roleDef = ALL_ROLES.find(r => r.key === actingPlayer.role);
     const roleName = roleDef ? roleDef.name : actingPlayer.role;
     room.spectatorLogs.push(`${getFormattedTimestamp()} ✨ Vai trò [${roleName}] đã hoàn thành lượt chọn.`);
@@ -410,6 +418,16 @@ io.on('connection', (socket) => {
       if (hangedPlayer) {
         hangedPlayer.isAlive = false;
         resultMsg = `${getFormattedTimestamp()} ⚖️ [BẦU CHỌN BAN NGÀY] ${hangedPlayer.name} bị treo cổ với ${maxVotes} phiếu bầu!`;
+
+        // Thần tình yêu: Kéo theo người kia chết
+        if (room.coupledPlayers && room.coupledPlayers.includes(hangedPlayer.id)) {
+          const partnerId = room.coupledPlayers.find(id => id !== hangedPlayer.id);
+          const partner = room.players.find(p => p.id === partnerId);
+          if (partner && partner.isAlive) {
+            partner.isAlive = false;
+            resultMsg += `\n${getFormattedTimestamp()} 💔 [THẢM KỊCH] ${partner.name} đã chết theo người tình ${hangedPlayer.name} (Tác dụng của Thần Tình Yêu)!`;
+          }
+        }
       }
     }
 
@@ -468,13 +486,32 @@ io.on('connection', (socket) => {
 
       // Apply death status to casualties ONLY NOW (Morning announcement!)
       const deadNames = [];
-      casualties.forEach(victimId => {
+      const deadIds = Array.from(casualties);
+
+      for (let i = 0; i < deadIds.length; i++) {
+        const victimId = deadIds[i];
         const victim = room.players.find(p => p.id === victimId);
+        
         if (victim && victim.isAlive) {
           victim.isAlive = false;
           deadNames.push(victim.name);
+
+          // Thần tình yêu: Kéo theo người kia chết
+          if (room.coupledPlayers && room.coupledPlayers.includes(victim.id)) {
+            const partnerId = room.coupledPlayers.find(id => id !== victim.id);
+            if (partnerId && !deadIds.includes(partnerId)) {
+              const partner = room.players.find(p => p.id === partnerId);
+              if (partner && partner.isAlive) {
+                partner.isAlive = false;
+                deadNames.push(partner.name);
+                room.nightLogs.push(`${getFormattedTimestamp()} 💔 [THẢM KỊCH] ${partner.name} đã chết vì quá đau buồn khi người tình ${victim.name} qua đời!`);
+                room.spectatorLogs.push(`${getFormattedTimestamp()} 💔 [THẢM KỊCH] ${partner.name} đã chết vì quá đau buồn khi người tình ${victim.name} qua đời!`);
+                deadIds.push(partnerId); // Thêm vào mảng để lặp (mặc dù đã gán isAlive=false rồi)
+              }
+            }
+          }
         }
-      });
+      }
 
       // Morning Announcement Message
       let morningMsg = '';
@@ -509,7 +546,18 @@ io.on('connection', (socket) => {
     const player = room.players.find(p => p.id === playerId);
     if (player) {
       player.isAlive = isAlive;
-      const statusMsg = `${getFormattedTimestamp()} [THÔNG BÁO] Người chơi ${player.name} ${isAlive ? 'đã được hồi sinh 💚' : 'đã tử vong 💀'}`;
+      let statusMsg = `${getFormattedTimestamp()} [THÔNG BÁO] Người chơi ${player.name} ${isAlive ? 'đã được hồi sinh 💚' : 'đã tử vong 💀'}`;
+
+      // Nếu quản trò cho chết và người này đang trong cặp ghép đôi
+      if (!isAlive && room.coupledPlayers && room.coupledPlayers.includes(player.id)) {
+        const partnerId = room.coupledPlayers.find(id => id !== player.id);
+        const partner = room.players.find(p => p.id === partnerId);
+        if (partner && partner.isAlive) {
+          partner.isAlive = false; // Chết theo
+          statusMsg += `\n${getFormattedTimestamp()} 💔 [THẢM KỊCH] ${partner.name} cũng đã tử vong theo ${player.name} (Cặp đôi ghép bởi Thần Tình Yêu)!`;
+        }
+      }
+
       room.nightLogs.push(statusMsg);
       room.spectatorLogs.push(statusMsg);
       io.to(roomCode).emit('player_status_changed', { playerId, isAlive, room });
