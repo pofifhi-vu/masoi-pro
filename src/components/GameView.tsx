@@ -1,7 +1,7 @@
 import React, { useState, useEffect, useRef } from 'react';
 import {
   Eye, EyeOff, Shield, PawPrint, Sun, Moon, Skull, Heart, MicOff,
-  UserCheck, AlertCircle, Play, Sparkles, CheckCircle2, ChevronRight, Activity, Trophy, Clock, Vote, Ban, Ghost, Crown, Users, Lock
+  UserCheck, AlertCircle, Play, Sparkles, CheckCircle2, ChevronRight, Activity, Trophy, Clock, Vote, Ban, Ghost, Crown, Users, Lock, Wifi
 } from 'lucide-react';
 import { RoomState, Player } from '../types/game';
 import { ALL_ROLES } from '../constants/roles';
