@@ -141,12 +141,18 @@ io.on('connection', (socket) => {
       existingPlayer.socketId = socket.id;
       existingPlayer.connected = true;
       if (cleanName) existingPlayer.name = cleanName;
+      if (existingPlayer.isHost) {
+        room.hostSocketId = socket.id;
+      }
+      if (existingPlayer.role) {
+        socket.emit('your_secret_role', { role: existingPlayer.role });
+      }
     } else {
       if (room.gameState !== 'LOBBY' && room.gameState !== 'ENDED') {
         return callback({ success: false, message: 'Phòng đã bắt đầu trận đấu, không thể tham gia!' });
       }
 
-      const isHost = (socket.id === room.hostSocketId);
+      const isHost = (socket.id === room.hostSocketId || room.players.length === 0);
       const newPlayer = {
         id: 'p_' + Math.random().toString(36).substring(2, 9),
         socketId: socket.id,
@@ -161,6 +167,7 @@ io.on('connection', (socket) => {
           deadSpeaker: true
         }
       };
+      if (isHost) room.hostSocketId = socket.id;
       room.players.push(newPlayer);
     }
 
@@ -238,19 +245,28 @@ io.on('connection', (socket) => {
     if (!room || room.hostSocketId !== socket.id) return;
 
     room.currentCalledRole = roleKey;
-    const targets = room.players.filter(p => p.role === roleKey && p.isAlive && !p.isHost);
+
+    let targets = [];
+    if (roleKey === 'MA_SOI') {
+      // All Werewolves wake up together!
+      targets = room.players.filter(p => (p.role === 'MA_SOI' || (p.role && p.role.startsWith('SOI_'))) && p.isAlive && !p.isHost);
+    } else {
+      targets = room.players.filter(p => p.role === roleKey && p.isAlive && !p.isHost);
+    }
 
     io.to(roomCode).emit('role_called_broadcast', { roleKey, currentCalledRole: roleKey });
 
     targets.forEach(t => {
+      console.log(`[Host Call Role] Sending your_turn_to_act (${roleKey}) to player: ${t.name} (socket: ${t.socketId})`);
       io.to(t.socketId).emit('your_turn_to_act', { roleKey, roomState: room });
     });
 
     const roleDef = ALL_ROLES.find(r => r.key === roleKey);
     const roleName = roleDef ? roleDef.name : roleKey;
 
-    room.nightLogs.push(`${getFormattedTimestamp()} Quản trò gọi vai trò: ${roleName}`);
-    room.spectatorLogs.push(`${getFormattedTimestamp()} 🌙 Quản trò gọi vai trò [${roleName}] thức dậy...`);
+    const msg = `${getFormattedTimestamp()} 🌙 Quản trò gọi vai trò [${roleName}] thức dậy...`;
+    room.nightLogs.push(msg);
+    room.spectatorLogs.push(msg);
 
     io.to(room.hostSocketId).emit('night_log_updated', room.nightLogs);
     io.to(roomCode).emit('room_updated', room);

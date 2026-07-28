@@ -533,30 +533,35 @@ export const GameView: React.FC<GameViewProps> = ({
 
         {/* RIGHT: Night Action Panel */}
         {activeActionRole && (
-          <div className="lg:col-span-5 bg-gradient-to-b from-purple-500/[0.06] to-indigo-500/[0.03] border border-purple-500/20 rounded-2xl p-6 flex flex-col gap-4 animate-slide-up">
+          <div className="lg:col-span-5 bg-gradient-to-b from-purple-500/[0.08] to-indigo-500/[0.04] border border-purple-500/30 rounded-2xl p-5 sm:p-6 flex flex-col gap-4 animate-slide-up shadow-2xl">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-300 shrink-0">
-                <Sparkles className="w-5 h-5" />
+              <div className="w-10 h-10 rounded-xl bg-purple-500/15 border border-purple-500/25 flex items-center justify-center text-purple-300 shrink-0">
+                <Sparkles className="w-5 h-5 text-amber-400" />
               </div>
               <div>
-                <div className="text-[10px] font-bold text-purple-400/80 uppercase tracking-[0.15em]">Đến lượt bạn!</div>
-                <h3 className="text-lg font-black text-white">{ALL_ROLES.find(r => r.key === activeActionRole)?.name}</h3>
+                <div className="text-[10px] font-extrabold text-amber-300 uppercase tracking-[0.15em] animate-pulse">Lượt của bạn!</div>
+                <h3 className="text-lg font-black text-white">{ALL_ROLES.find(r => r.key === activeActionRole)?.name || (activeActionRole === 'MA_SOI' ? 'Phe Ma Sói' : activeActionRole)}</h3>
               </div>
             </div>
 
-            <p className="text-xs text-[#8a85a0] leading-relaxed">
-              Quản trò vừa gọi chức năng của bạn. Chọn mục tiêu bên dưới để thực hiện hành động đêm.
+            <p className="text-xs text-[#b4afe0] leading-relaxed">
+              {activeActionRole === 'MA_SOI' ? 'Quản trò vừa gọi Phe Sói. Thảo luận và chọn 1 nạn nhân để cắn chết đêm nay:' :
+               activeActionRole === 'TIEN_TRI' ? 'Quản trò gọi Tiên tri. Chọn 1 người chơi để kiểm tra phe (Sói hay Dân):' :
+               activeActionRole === 'BAO_VE' ? 'Quản trò gọi Bảo vệ. Chọn 1 người chơi để bảo vệ đêm nay:' :
+               activeActionRole === 'PHU_THUY' ? 'Quản trò gọi Phù thủy. Chọn mục tiêu dùng thuốc:' :
+               activeActionRole === 'THAN_TINH_YEU' ? 'Quản trò gọi Thần tình yêu. Chọn 2 người chơi để ghép đôi:' :
+               'Quản trò vừa gọi chức năng của bạn. Chọn mục tiêu bên dưới để thực hiện hành động đêm:'}
             </p>
 
             {actionSubmitted ? (
-              <div className="p-5 bg-emerald-500/[0.06] border border-emerald-500/15 rounded-xl text-center flex flex-col items-center gap-2">
+              <div className="p-5 bg-emerald-500/[0.08] border border-emerald-500/20 rounded-xl text-center flex flex-col items-center gap-2">
                 <CheckCircle2 className="w-8 h-8 text-emerald-400" />
-                <span className="text-xs font-bold text-emerald-200">Đã gửi hành động! Bạn có thể đi ngủ.</span>
+                <span className="text-xs font-bold text-emerald-200">Đã gửi hành động! Bạn có thể chờ quản trò chuyển lượt.</span>
               </div>
             ) : (
               <div className="flex flex-col gap-4">
                 <div>
-                  <label className="text-xs font-bold text-[#8a85a0] mb-1.5 block">Chọn mục tiêu:</label>
+                  <label className="text-xs font-bold text-[#8a85a0] mb-1.5 block">Chọn mục tiêu 1:</label>
                   <select
                     value={selectedTargetId}
                     onChange={e => setSelectedTargetId(e.target.value)}
@@ -592,7 +597,7 @@ export const GameView: React.FC<GameViewProps> = ({
                 <button
                   onClick={() => handleActionSubmit('NIGHT_ACTION')}
                   disabled={!selectedTargetId}
-                  className="btn-primary py-3 text-white text-xs mt-2"
+                  className="btn-primary py-3 text-white text-xs font-bold mt-2"
                 >
                   Xác nhận hành động
                 </button>

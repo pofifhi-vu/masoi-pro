@@ -63,11 +63,20 @@ const AppContent: React.FC = () => {
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
   const [pendingRoomCode, setPendingRoomCode] = useState<string>('');
 
+  const secretRoleRef = useRef<string | null>(null);
+  secretRoleRef.current = secretRole;
+
+  const currentPlayerRef = useRef<Player | null>(null);
+  currentPlayerRef.current = currentPlayer;
+
   // Initialize Socket Connection
   useEffect(() => {
     const socketUrl = window.location.hostname === 'localhost' ? 'http://localhost:3001' : window.location.origin;
     const newSocket = io(socketUrl, {
-      transports: ['websocket', 'polling']
+      transports: ['websocket', 'polling'],
+      reconnection: true,
+      reconnectionAttempts: 10,
+      reconnectionDelay: 1000
     });
 
     setSocket(newSocket);
@@ -79,7 +88,11 @@ const AppContent: React.FC = () => {
     newSocket.on('room_updated', (updatedRoom: RoomState) => {
       setRoom(updatedRoom);
       if (updatedRoom.players && newSocket.id) {
-        const me = updatedRoom.players.find(p => p.socketId === newSocket.id);
+        const me = updatedRoom.players.find(p =>
+          p.socketId === newSocket.id ||
+          (currentPlayerRef.current && p.id === currentPlayerRef.current.id) ||
+          (currentPlayerRef.current && p.name.trim().toLowerCase() === currentPlayerRef.current.name.trim().toLowerCase())
+        );
         if (me) setCurrentPlayer(me);
       }
     });
@@ -94,11 +107,14 @@ const AppContent: React.FC = () => {
     });
 
     newSocket.on('your_turn_to_act', ({ roleKey }: { roleKey: string }) => {
+      console.log('[Socket] your_turn_to_act received:', roleKey);
       setActiveActionRole(roleKey);
     });
 
     newSocket.on('role_called_broadcast', ({ roleKey }: { roleKey: string }) => {
-      if (secretRole !== roleKey) {
+      const myRole = secretRoleRef.current;
+      const isMyRoleGroup = myRole === roleKey || (roleKey === 'MA_SOI' && (myRole?.startsWith('MA_SOI') || myRole?.startsWith('SOI_')));
+      if (!isMyRoleGroup) {
         setActiveActionRole(null);
       }
     });
@@ -119,7 +135,6 @@ const AppContent: React.FC = () => {
     const urlParams = new URLSearchParams(window.location.search);
     const roomParam = urlParams.get('room');
     if (roomParam) {
-      // Don't join immediately - show name entry first
       setPendingRoomCode(roomParam.trim().toLowerCase());
       setView('NAME_ENTRY');
     }
@@ -127,7 +142,7 @@ const AppContent: React.FC = () => {
     return () => {
       newSocket.disconnect();
     };
-  }, [secretRole]);
+  }, []);
 
   // Handle Create Room
   const handleCreateRoom = (customCode: string, roleConfig: Record<string, number>, playerNamesText: string) => {
