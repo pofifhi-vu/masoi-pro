@@ -66,8 +66,8 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onSelectCreate, onSelect
           </button>
         </div>
 
-        {/* Quote Section */}
-        <div className="mt-10 sm:mt-12 px-5 py-3 rounded-2xl bg-white/[0.02] border border-white/[0.04] backdrop-blur-sm max-w-xs flex flex-col items-center opacity-75">
+        {/* Quote Section (Frameless, dimmed) */}
+        <div className="mt-8 sm:mt-10 flex flex-col items-center opacity-60 select-none">
           <p className="text-xs sm:text-sm font-medium italic text-[#8a85a0] tracking-wide">
             "Chan bố mày đi"
           </p>
