@@ -32,6 +32,7 @@ export const VoiceChatBar: React.FC<VoiceChatBarProps> = ({ socket, roomCode, cu
 
   const isHost = currentPlayer?.isHost || false;
   const isDead = currentPlayer ? !currentPlayer.isAlive : false;
+  const isSilenced = room?.silencedPlayerIds?.includes(currentPlayer?.id || '') || false;
 
   useEffect(() => {
     if (isHost || isDead) {
@@ -304,6 +305,7 @@ export const VoiceChatBar: React.FC<VoiceChatBarProps> = ({ socket, roomCode, cu
 
   // Mic toggle
   const toggleMic = () => {
+    if (isSilenced) return; // Không cho bật mic nếu bị cấm khẩu
     const next = !audioState.mic;
     localStreamRef.current?.getAudioTracks().forEach(t => { t.enabled = next; });
     const newState = { ...audioState, mic: next };
@@ -350,13 +352,15 @@ export const VoiceChatBar: React.FC<VoiceChatBarProps> = ({ socket, roomCode, cu
 
       {/* Mic */}
       <div className="relative flex items-center shrink-0">
-        <button onClick={toggleMic} className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 transition-all ${isHost ? 'rounded-l-xl' : 'rounded-xl'} ${
-          audioState.mic
-            ? 'bg-purple-500/10 text-purple-300 border border-purple-500/15 hover:bg-purple-500/20'
-            : 'bg-rose-500/10 text-rose-400 border border-rose-500/15 hover:bg-rose-500/20'
-        }`}>
-          {audioState.mic ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
-          <span>{audioState.mic ? 'Mic On' : 'Mic Off'}</span>
+        <button onClick={toggleMic} disabled={isSilenced} className={`flex items-center gap-1 sm:gap-1.5 px-2.5 sm:px-3 py-1.5 transition-all ${isHost ? 'rounded-l-xl' : 'rounded-xl'} ${
+          isSilenced
+            ? 'bg-rose-900/40 text-rose-500 border border-rose-500/10 cursor-not-allowed opacity-80'
+            : audioState.mic
+              ? 'bg-purple-500/10 text-purple-300 border border-purple-500/15 hover:bg-purple-500/20'
+              : 'bg-rose-500/10 text-rose-400 border border-rose-500/15 hover:bg-rose-500/20'
+        }`} title={isSilenced ? 'Bạn đã bị Pháp sư cấm khẩu hôm nay!' : ''}>
+          {isSilenced ? <MicOff className="w-3.5 h-3.5 text-rose-500" /> : audioState.mic ? <Mic className="w-3.5 h-3.5" /> : <MicOff className="w-3.5 h-3.5" />}
+          <span>{isSilenced ? 'Bị Cấm Khẩu' : audioState.mic ? 'Mic On' : 'Mic Off'}</span>
           {isHost && <span className="text-[9px] text-amber-300/80 ml-0.5 hidden sm:inline">({targetLabels[hostMicTarget]})</span>}
         </button>
 

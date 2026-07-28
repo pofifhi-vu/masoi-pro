@@ -41,4 +41,10 @@ export interface RoomState {
   dayVotes: Record<string, string>;
   nightLogs: string[];
   spectatorLogs: string[];
+  
+  // Trạng thái các role đặc biệt
+  coupledPlayers?: string[];
+  silencedPlayerIds?: string[];
+  hunterTargetId?: string | null;
+  elderBitten?: boolean;
 }

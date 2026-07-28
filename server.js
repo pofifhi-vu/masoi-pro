@@ -419,6 +419,17 @@ io.on('connection', (socket) => {
         hangedPlayer.isAlive = false;
         resultMsg = `${getFormattedTimestamp()} ⚖️ [BẦU CHỌN BAN NGÀY] ${hangedPlayer.name} bị treo cổ với ${maxVotes} phiếu bầu!`;
 
+        // Kẻ chán đời: Treo cổ thành công -> Thắng luôn
+        if (hangedPlayer.role === 'KE_CHAN_DOI') {
+          room.gameState = 'ENDED';
+          room.currentCalledRole = null;
+          const jesterMsg = `${getFormattedTimestamp()} 🎭 [KẺ CHÁN ĐỜI CHIẾN THẮNG] Dân làng đã mắc mưu! Kẻ chán đời ${hangedPlayer.name} đã bị treo cổ thành công và giành chiến thắng ván đấu!`;
+          room.nightLogs.push(jesterMsg);
+          room.spectatorLogs.push(jesterMsg);
+          io.to(roomCode).emit('room_updated', room);
+          return;
+        }
+
         // Thần tình yêu: Kéo theo người kia chết
         if (room.coupledPlayers && room.coupledPlayers.includes(hangedPlayer.id)) {
           const partnerId = room.coupledPlayers.find(id => id !== hangedPlayer.id);
@@ -426,6 +437,25 @@ io.on('connection', (socket) => {
           if (partner && partner.isAlive) {
             partner.isAlive = false;
             resultMsg += `\n${getFormattedTimestamp()} 💔 [THẢM KỊCH] ${partner.name} đã chết theo người tình ${hangedPlayer.name} (Tác dụng của Thần Tình Yêu)!`;
+          }
+        }
+        
+        // Thợ săn: Bắn chết mục tiêu cuối cùng
+        if (hangedPlayer.role === 'THO_SAN' && room.hunterTargetId) {
+          const hunted = room.players.find(p => p.id === room.hunterTargetId);
+          if (hunted && hunted.isAlive) {
+            hunted.isAlive = false;
+            resultMsg += `\n${getFormattedTimestamp()} 🔫 [THẢM KỊCH] Thợ săn ${hangedPlayer.name} trước khi chết đã kịp thời rút súng bắn hạ ${hunted.name}!`;
+            
+            // Nếu người bị thợ săn bắn lại nằm trong cặp tình yêu
+            if (room.coupledPlayers && room.coupledPlayers.includes(hunted.id)) {
+              const pId = room.coupledPlayers.find(id => id !== hunted.id);
+              const p2 = room.players.find(p => p.id === pId);
+              if (p2 && p2.isAlive) {
+                p2.isAlive = false;
+                resultMsg += `\n${getFormattedTimestamp()} 💔 [THẢM KỊCH] ${p2.name} cũng đã chết vì quá đau buồn khi người tình ${hunted.name} bị Thợ săn bắn!`;
+              }
+            }
           }
         }
       }
@@ -450,11 +480,31 @@ io.on('connection', (socket) => {
       const wolfAction = room.nightActions['MA_SOI'] || room.nightActions['SOI_BANG_TRONG'] || room.nightActions['SOI_DU_THOI'];
       const guardAction = room.nightActions['BAO_VE'];
       const witchAction = room.nightActions['PHU_THUY'];
+      const silencerAction = room.nightActions['PHAP_SU_CAM_LANG'] || room.nightActions['SOI_CAM_LANG'];
+      const hunterAction = room.nightActions['THO_SAN'];
 
       const wolfTargetId = wolfAction ? wolfAction.targetPlayerId : null;
       const guardTargetId = guardAction ? guardAction.targetPlayerId : null;
       const witchSave = witchAction && witchAction.note === 'SAVE';
       const witchPoisonId = witchAction && witchAction.targetPlayerId ? witchAction.targetPlayerId : null;
+
+      // Xử lý Thợ Săn (Lưu mục tiêu)
+      if (hunterAction && hunterAction.targetPlayerId) {
+        room.hunterTargetId = hunterAction.targetPlayerId;
+      }
+
+      // Xử lý Câm Lặng
+      if (silencerAction && silencerAction.targetPlayerId) {
+        room.silencedPlayerIds = [silencerAction.targetPlayerId];
+        const silencedPlayer = room.players.find(p => p.id === silencerAction.targetPlayerId);
+        if (silencedPlayer) {
+          silencedPlayer.audioState.mic = false;
+          io.to(roomCode).emit('player_audio_updated', { playerId: silencedPlayer.id, audioState: silencedPlayer.audioState });
+          room.nightLogs.push(`${getFormattedTimestamp()} 🤐 [SỰ KIỆN] Phép thuật câm lặng đã giáng xuống! Có người đã bị khóa miệng vào ngày hôm nay.`);
+        }
+      } else {
+        room.silencedPlayerIds = [];
+      }
 
       const casualties = new Set();
 
@@ -471,7 +521,13 @@ io.on('connection', (socket) => {
         } else {
           const isProtected = (wolfTargetId === guardTargetId) || witchSave;
           if (!isProtected) {
-            casualties.add(wolfTargetId);
+            // Già làng: Vết cắn đầu tiên không chết
+            if (bittenPlayer && bittenPlayer.role === 'GIA_LANG' && !room.elderBitten) {
+              room.elderBitten = true;
+              room.nightLogs.push(`${getFormattedTimestamp()} 🛡️ [SỰ KIỆN] Ma sói đã cắn trúng Già Làng, nhưng nhờ sinh lực dồi dào, Già Làng vẫn sống sót qua đêm nay!`);
+            } else {
+              casualties.add(wolfTargetId);
+            }
           } else if (witchSave) {
             const saveMsg = `${getFormattedTimestamp()} ✨ Phù thủy đã sử dụng thuốc cứu mạng!`;
             room.nightLogs.push(saveMsg);
@@ -507,6 +563,21 @@ io.on('connection', (socket) => {
                 room.nightLogs.push(`${getFormattedTimestamp()} 💔 [THẢM KỊCH] ${partner.name} đã chết vì quá đau buồn khi người tình ${victim.name} qua đời!`);
                 room.spectatorLogs.push(`${getFormattedTimestamp()} 💔 [THẢM KỊCH] ${partner.name} đã chết vì quá đau buồn khi người tình ${victim.name} qua đời!`);
                 deadIds.push(partnerId); // Thêm vào mảng để lặp (mặc dù đã gán isAlive=false rồi)
+              }
+            }
+          }
+
+          // Thợ săn: Kéo theo mục tiêu đã chọn
+          if (victim.role === 'THO_SAN' && room.hunterTargetId) {
+            const huntedId = room.hunterTargetId;
+            if (!deadIds.includes(huntedId)) {
+              const hunted = room.players.find(p => p.id === huntedId);
+              if (hunted && hunted.isAlive) {
+                hunted.isAlive = false;
+                deadNames.push(hunted.name);
+                room.nightLogs.push(`${getFormattedTimestamp()} 🔫 [THẢM KỊCH] Thợ săn ${victim.name} trước khi chết đã bắn hạ ${hunted.name}!`);
+                room.spectatorLogs.push(`${getFormattedTimestamp()} 🔫 [THẢM KỊCH] Thợ săn ${victim.name} bắn chết ${hunted.name}!`);
+                deadIds.push(huntedId); // Để lặp tiếp nếu người này lại nằm trong cặp tình yêu
               }
             }
           }
@@ -558,6 +629,15 @@ io.on('connection', (socket) => {
         }
       }
 
+      // Thợ săn: Bắn chết mục tiêu
+      if (!isAlive && player.role === 'THO_SAN' && room.hunterTargetId) {
+        const hunted = room.players.find(p => p.id === room.hunterTargetId);
+        if (hunted && hunted.isAlive) {
+          hunted.isAlive = false;
+          statusMsg += `\n${getFormattedTimestamp()} 🔫 [THẢM KỊCH] Thợ săn ${player.name} đã bắn chết ${hunted.name}!`;
+        }
+      }
+
       room.nightLogs.push(statusMsg);
       room.spectatorLogs.push(statusMsg);
       io.to(roomCode).emit('player_status_changed', { playerId, isAlive, room });
@@ -586,6 +666,9 @@ io.on('connection', (socket) => {
 
     const player = room.players.find(p => p.socketId === socket.id);
     if (player) {
+      if (room.silencedPlayerIds && room.silencedPlayerIds.includes(player.id) && audioState.mic) {
+        return; // Chặn yêu cầu mở mic nếu bị cấm khẩu
+      }
       player.audioState = audioState;
       io.to(roomCode).emit('player_audio_updated', { playerId: player.id, audioState });
       io.to(roomCode).emit('room_updated', room);
