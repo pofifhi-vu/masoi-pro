@@ -76,7 +76,8 @@ const AppContent: React.FC = () => {
       transports: ['websocket', 'polling'],
       reconnection: true,
       reconnectionAttempts: 10,
-      reconnectionDelay: 1000
+      reconnectionDelay: 1000,
+      timeout: 10000
     });
 
     setSocket(newSocket);
@@ -141,6 +142,15 @@ const AppContent: React.FC = () => {
       newSocket.disconnect();
     };
   }, []);
+
+  // Client Heartbeat (gửi liên tục mỗi 3s)
+  useEffect(() => {
+    if (!socket || !room?.code) return;
+    const interval = setInterval(() => {
+      socket.emit('client_heartbeat', { roomCode: room.code });
+    }, 3000);
+    return () => clearInterval(interval);
+  }, [socket, room?.code]);
 
   // Handle Create Room
   const handleCreateRoom = (customCode: string, roleConfig: Record<string, number>, playerNamesText: string) => {

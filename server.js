@@ -20,7 +20,9 @@ const io = new Server(server, {
   cors: {
     origin: '*',
     methods: ['GET', 'POST']
-  }
+  },
+  pingTimeout: 10000,
+  pingInterval: 5000
 });
 
 // Serve static build from Vite 'dist' folder on production (Render)
@@ -64,6 +66,22 @@ function getFormattedTimestamp() {
 
 io.on('connection', (socket) => {
   console.log(`[Socket Connected] ${socket.id}`);
+
+  // Tín hiệu nhịp tim từ client (phòng trường hợp mất mạng / lag)
+  socket.on('client_heartbeat', ({ roomCode }) => {
+    if (!roomCode) return;
+    const room = rooms[roomCode];
+    if (!room) return;
+    const player = room.players.find(p => p.socketId === socket.id);
+    if (player) {
+      player.lastHeartbeat = Date.now();
+      if (!player.connected) {
+        // Tự động phục hồi kết nối nếu trước đó bị báo mất
+        player.connected = true;
+        io.to(roomCode).emit('room_updated', room);
+      }
+    }
+  });
 
   // Create or update room configuration
   socket.on('create_room', ({ customCode, roleConfig, hostName, initialPlayerNames }, callback) => {

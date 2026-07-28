@@ -33,6 +33,19 @@ export const GameView: React.FC<GameViewProps> = ({
   const [actionSubmitted, setActionSubmitted] = useState<boolean>(false);
   const [myDayVote, setMyDayVote] = useState<string>('');
   const [playerLeftToast, setPlayerLeftToast] = useState<string | null>(null);
+  const [speakingPlayers, setSpeakingPlayers] = useState<Record<string, boolean>>({});
+
+  useEffect(() => {
+    const handleSpeaking = (e: any) => {
+      const { playerId, isSpeaking } = e.detail;
+      setSpeakingPlayers(prev => {
+        if (prev[playerId] === isSpeaking) return prev;
+        return { ...prev, [playerId]: isSpeaking };
+      });
+    };
+    window.addEventListener('player_speaking', handleSpeaking);
+    return () => window.removeEventListener('player_speaking', handleSpeaking);
+  }, []);
 
   const isHost = currentPlayer?.isHost || false;
   const isDead = currentPlayer ? !currentPlayer.isAlive : false;
@@ -388,6 +401,10 @@ export const GameView: React.FC<GameViewProps> = ({
                       <div
                         key={p.id}
                         className={`p-3 rounded-xl border flex items-center justify-between gap-3 transition-all ${
+                          speakingPlayers[p.id] ? 'ring-2 ring-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)] ' : ''
+                        }${
+                          !p.connected ? 'opacity-40 grayscale ' : ''
+                        }${
                           p.isAlive
                             ? 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]'
                             : 'bg-rose-500/[0.04] border-rose-500/10 opacity-60'
@@ -402,9 +419,10 @@ export const GameView: React.FC<GameViewProps> = ({
                             {p.isAlive ? '💚' : '💀'}
                           </div>
                           <div className="min-w-0">
-                            <div className="text-xs font-bold text-white truncate flex items-center gap-1.5">
-                              <span>{p.name}</span>
-                              {!p.connected && <span className="text-[9px] text-amber-400/70">(mất kết nối)</span>}
+                            <div className="text-xs font-bold text-white truncate flex items-center gap-1.5 flex-wrap">
+                              <span className={!p.isAlive ? 'line-through text-rose-300' : ''}>{p.name}</span>
+                              {room.silencedPlayerIds?.includes(p.id) && <MicOff className="w-3 h-3 text-rose-500" />}
+                              {!p.connected && <Wifi className="w-3 h-3 text-amber-500 animate-pulse" title="Mất kết nối" />}
                               <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
                                 isWolf
                                   ? 'bg-rose-500/10 text-rose-300 border border-rose-500/15'
@@ -513,6 +531,10 @@ export const GameView: React.FC<GameViewProps> = ({
                   <div
                     key={p.id}
                     className={`p-3.5 rounded-xl border flex items-center gap-3 transition-all ${
+                      speakingPlayers[p.id] ? 'ring-2 ring-emerald-500 shadow-[0_0_15px_rgba(16,185,129,0.3)] ' : ''
+                    }${
+                      !p.connected ? 'opacity-40 grayscale ' : ''
+                    }${
                       p.id === currentPlayer?.id
                         ? 'bg-purple-500/[0.08] border-purple-500/20 shadow-lg shadow-purple-900/10'
                         : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]'
@@ -526,14 +548,15 @@ export const GameView: React.FC<GameViewProps> = ({
                       {p.isAlive ? '💚' : '💀'}
                     </div>
                     <div className="min-w-0">
-                      <div className="text-sm font-bold text-white truncate flex items-center gap-1.5">
-                        {p.name}
+                      <div className="text-sm font-bold text-white truncate flex items-center gap-1.5 flex-wrap">
+                        <span className={!p.isAlive ? 'line-through text-rose-300' : ''}>{p.name}</span>
                         {p.id === currentPlayer?.id && <span className="text-[10px] text-purple-400 font-bold">(Bạn)</span>}
                         {p.isHost && <Crown className="w-3 h-3 text-amber-400" />}
+                        {room.silencedPlayerIds?.includes(p.id) && <MicOff className="w-3.5 h-3.5 text-rose-500" />}
+                        {!p.connected && <Wifi className="w-3.5 h-3.5 text-amber-500 animate-pulse" title="Mất kết nối" />}
                       </div>
                       <div className="text-[11px] text-[#5a5572]">
                         {p.isAlive ? 'Còn sống' : 'Đã chết (Hồn ma 👻)'}
-                        {!p.connected && !p.isAlive === false && <span className="text-amber-400/60 ml-1">(mất KN)</span>}
                       </div>
                     </div>
                   </div>

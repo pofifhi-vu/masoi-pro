@@ -30,6 +30,11 @@ export const VoiceChatBar: React.FC<VoiceChatBarProps> = ({ socket, roomCode, cu
   const activeCallsRef = useRef<Map<string, MediaConnection>>(new Map());
   const myPeerIdRef = useRef<string | null>(null);
 
+  // VAD Refs
+  const audioCtxRef = useRef<AudioContext | null>(null);
+  const analysersRef = useRef<Map<string, AnalyserNode>>(new Map());
+  const rafRef = useRef<number>(0);
+
   const isHost = currentPlayer?.isHost || false;
   const isDead = currentPlayer ? !currentPlayer.isAlive : false;
   const isSilenced = room?.silencedPlayerIds?.includes(currentPlayer?.id || '') || false;
@@ -95,6 +100,33 @@ export const VoiceChatBar: React.FC<VoiceChatBarProps> = ({ socket, roomCode, cu
 
   useEffect(() => { applyAudioFilters(); }, [applyAudioFilters]);
 
+  // Audio Monitor cho VAD
+  const startAudioMonitor = useCallback(() => {
+    if (rafRef.current) return;
+    const checkVolume = () => {
+      analysersRef.current.forEach((analyser, peerId) => {
+        const dataArray = new Uint8Array(analyser.frequencyBinCount);
+        analyser.getByteFrequencyData(dataArray);
+        let sum = 0;
+        for (let i = 0; i < dataArray.length; i++) {
+          sum += dataArray[i];
+        }
+        const avg = sum / dataArray.length;
+        const isSpeaking = avg > 5; // Ngưỡng nói
+        
+        // Trích xuất playerId từ peerId (masoi_roomcode_playerId)
+        const parts = peerId.split('_');
+        const pId = parts.length >= 3 ? parts.slice(2).join('_') : peerId;
+        
+        window.dispatchEvent(new CustomEvent('player_speaking', {
+          detail: { playerId: pId, isSpeaking }
+        }));
+      });
+      rafRef.current = requestAnimationFrame(checkVolume);
+    };
+    checkVolume();
+  }, []);
+
   const attachRemoteStream = useCallback((peerId: string, remoteStream: MediaStream) => {
     let audioEl = audioElementsRef.current.get(peerId);
     if (!audioEl) {
@@ -109,9 +141,28 @@ export const VoiceChatBar: React.FC<VoiceChatBarProps> = ({ socket, roomCode, cu
     }
     audioEl.srcObject = remoteStream;
     audioEl.play().catch(() => {});
+    
+    // Gắn Analyser cho VAD
+    if (!audioCtxRef.current) {
+      const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+      if (AudioContextClass) audioCtxRef.current = new AudioContextClass();
+    }
+    if (audioCtxRef.current) {
+      try {
+        const source = audioCtxRef.current.createMediaStreamSource(remoteStream);
+        const analyser = audioCtxRef.current.createAnalyser();
+        analyser.fftSize = 256;
+        source.connect(analyser);
+        analysersRef.current.set(peerId, analyser);
+        startAudioMonitor();
+      } catch (e) {
+        console.warn('[VAD] AudioContext error for remote stream:', e);
+      }
+    }
+
     setConnectedPeers(audioElementsRef.current.size);
     applyAudioFilters();
-  }, [applyAudioFilters]);
+  }, [applyAudioFilters, startAudioMonitor]);
 
   // Call a remote peer
   const callPeer = useCallback((remotePeerId: string) => {
@@ -168,6 +219,24 @@ export const VoiceChatBar: React.FC<VoiceChatBarProps> = ({ socket, roomCode, cu
           audio: { echoCancellation: true, noiseSuppression: true, autoGainControl: true }
         });
         localStreamRef.current = stream;
+        
+        // Gắn Analyser cho Mic của bản thân
+        if (!audioCtxRef.current) {
+          const AudioContextClass = window.AudioContext || (window as any).webkitAudioContext;
+          if (AudioContextClass) audioCtxRef.current = new AudioContextClass();
+        }
+        if (audioCtxRef.current) {
+          try {
+            const source = audioCtxRef.current.createMediaStreamSource(stream);
+            const analyser = audioCtxRef.current.createAnalyser();
+            analyser.fftSize = 256;
+            source.connect(analyser);
+            analysersRef.current.set(peerId, analyser);
+            startAudioMonitor();
+          } catch (e) {
+            console.warn('[VAD] Local mic analyser error:', e);
+          }
+        }
       } catch (e: any) {
         setErrorMsg('Chưa cấp quyền Micro');
         setConnectionStatus('Cần quyền Mic');
@@ -271,6 +340,7 @@ export const VoiceChatBar: React.FC<VoiceChatBarProps> = ({ socket, roomCode, cu
         const el = audioElementsRef.current.get(remotePeerId);
         if (el) { el.pause(); el.srcObject = null; el.remove(); audioElementsRef.current.delete(remotePeerId); }
         activeCallsRef.current.delete(remotePeerId);
+        analysersRef.current.delete(remotePeerId); // Xóa khỏi VAD
         setConnectedPeers(audioElementsRef.current.size);
       });
 
@@ -293,12 +363,14 @@ export const VoiceChatBar: React.FC<VoiceChatBarProps> = ({ socket, roomCode, cu
           socket.emit('voice_peer_leaving', { roomCode: roomCode?.trim().toLowerCase(), peerId: myPeerIdRef.current });
         }
       }
+      if (rafRef.current) { cancelAnimationFrame(rafRef.current); rafRef.current = 0; }
       activeCallsRef.current.forEach(c => c.close());
       activeCallsRef.current.clear();
       if (localStreamRef.current) { localStreamRef.current.getTracks().forEach(t => t.stop()); localStreamRef.current = null; }
       if (peerRef.current) { peerRef.current.destroy(); peerRef.current = null; }
       audioElementsRef.current.forEach(el => { el.pause(); el.srcObject = null; el.remove(); });
       audioElementsRef.current.clear();
+      analysersRef.current.clear();
       setIsConnected(false);
     };
   }, [roomCode, currentPlayer?.id]);
