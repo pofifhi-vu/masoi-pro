@@ -1,0 +1,161 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700;800;900&display=swap');
+
+:root {
+  color-scheme: dark;
+  --bg-primary: #06060e;
+  --bg-secondary: #0d0d1a;
+  --bg-card: #111122;
+  --bg-card-hover: #161633;
+  --border-subtle: rgba(100, 80, 200, 0.12);
+  --border-active: rgba(139, 92, 246, 0.4);
+  --accent-purple: #8b5cf6;
+  --accent-indigo: #6366f1;
+  --accent-rose: #f43f5e;
+  --accent-emerald: #10b981;
+  --accent-amber: #f59e0b;
+  --text-primary: #f1f0f7;
+  --text-secondary: #8a85a0;
+  --text-muted: #5a5572;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  background-color: var(--bg-primary);
+  color: var(--text-primary);
+  font-family: 'Inter', system-ui, -apple-system, sans-serif;
+  overflow-x: hidden;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Scrollbars */
+::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(139, 92, 246, 0.2); border-radius: 10px; }
+::-webkit-scrollbar-thumb:hover { background: rgba(139, 92, 246, 0.4); }
+
+/* Glassmorphism Panel */
+.glass-panel {
+  background: rgba(17, 17, 34, 0.75);
+  backdrop-filter: blur(20px) saturate(150%);
+  -webkit-backdrop-filter: blur(20px) saturate(150%);
+  border: 1px solid var(--border-subtle);
+}
+
+/* Role Card */
+.role-card {
+  background: var(--bg-card);
+  border: 1px solid var(--border-subtle);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  border-radius: 16px;
+}
+
+.role-card:hover {
+  border-color: var(--border-active);
+  background: var(--bg-card-hover);
+  box-shadow: 0 0 30px rgba(139, 92, 246, 0.08);
+  transform: translateY(-1px);
+}
+
+/* Counter Button */
+.counter-btn {
+  background: rgba(139, 92, 246, 0.08);
+  border: 1px solid rgba(139, 92, 246, 0.15);
+  color: #c4b5fd;
+  border-radius: 10px;
+  transition: all 0.15s ease;
+  font-weight: 700;
+}
+
+.counter-btn:hover:not(:disabled) {
+  background: rgba(139, 92, 246, 0.2);
+  color: #fff;
+  border-color: rgba(139, 92, 246, 0.4);
+}
+
+.counter-btn:active:not(:disabled) {
+  transform: scale(0.92);
+}
+
+/* Primary Button */
+.btn-primary {
+  background: linear-gradient(135deg, var(--accent-purple) 0%, var(--accent-indigo) 100%);
+  box-shadow: 0 4px 20px rgba(139, 92, 246, 0.3), 0 0 60px rgba(139, 92, 246, 0.08);
+  transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
+  border: none;
+  border-radius: 14px;
+  font-weight: 800;
+  letter-spacing: 0.01em;
+}
+
+.btn-primary:hover:not(:disabled) {
+  background: linear-gradient(135deg, #9b6ff7 0%, #7577f5 100%);
+  box-shadow: 0 6px 30px rgba(139, 92, 246, 0.45), 0 0 80px rgba(139, 92, 246, 0.12);
+  transform: translateY(-2px);
+}
+
+.btn-primary:active:not(:disabled) {
+  transform: translateY(0);
+}
+
+.btn-primary:disabled {
+  opacity: 0.35;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* Animated Gradient Text */
+.gradient-text {
+  background: linear-gradient(135deg, #c084fc, #818cf8, #a78bfa);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* Pulse Glow Ring */
+@keyframes glowPulse {
+  0%, 100% { box-shadow: 0 0 15px rgba(139, 92, 246, 0.15); }
+  50% { box-shadow: 0 0 30px rgba(139, 92, 246, 0.35); }
+}
+
+.glow-ring {
+  animation: glowPulse 3s infinite ease-in-out;
+}
+
+/* Floating animation */
+@keyframes float {
+  0%, 100% { transform: translateY(0); }
+  50% { transform: translateY(-6px); }
+}
+
+.animate-float {
+  animation: float 4s ease-in-out infinite;
+}
+
+/* Smooth slide up */
+@keyframes slideUp {
+  from { opacity: 0; transform: translateY(16px); }
+  to { opacity: 1; transform: translateY(0); }
+}
+
+.animate-slide-up {
+  animation: slideUp 0.4s cubic-bezier(0.22, 1, 0.36, 1) forwards;
+}
+
+/* Noise texture overlay */
+.noise-bg::before {
+  content: '';
+  position: fixed;
+  top: 0; left: 0; right: 0; bottom: 0;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
+  pointer-events: none;
+  z-index: 0;
+}

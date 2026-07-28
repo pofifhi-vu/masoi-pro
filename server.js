@@ -1,0 +1,641 @@
+import express from 'express';
+import { createServer } from 'http';
+import { Server } from 'socket.io';
+import cors from 'cors';
+import path from 'path';
+import fs from 'fs';
+import crypto from 'crypto';
+import { fileURLToPath } from 'url';
+import jwt from 'jsonwebtoken';
+import { ALL_ROLES } from './shared/roles.js';
+
+const __filename = fileURLToPath(import.meta.url);
+const __dirname = path.dirname(__filename);
+
+const app = express();
+app.use(cors());
+
+const server = createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: '*',
+    methods: ['GET', 'POST']
+  }
+});
+
+// Serve static build from Vite 'dist' folder on production (Render)
+const distPath = path.join(__dirname, 'dist');
+if (fs.existsSync(distPath)) {
+  app.use(express.static(distPath));
+}
+
+// Room State Data Structure
+const rooms = {};
+
+function generateRandomCode() {
+  const chars = 'ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
+  let code = '';
+  for (let i = 0; i < 5; i++) {
+    code += chars.charAt(Math.floor(Math.random() * chars.length));
+  }
+  return code;
+}
+
+function shuffleArray(array) {
+  const arr = [...array];
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(Math.random() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+// Timestamp helper format [hh:mm:ss, dd/mm/yy]
+function getFormattedTimestamp() {
+  const now = new Date();
+  const hours = String(now.getHours()).padStart(2, '0');
+  const minutes = String(now.getMinutes()).padStart(2, '0');
+  const seconds = String(now.getSeconds()).padStart(2, '0');
+  const day = String(now.getDate()).padStart(2, '0');
+  const month = String(now.getMonth() + 1).padStart(2, '0');
+  const year = String(now.getFullYear()).slice(-2);
+  return `[${hours}:${minutes}:${seconds}, ${day}/${month}/${year}]`;
+}
+
+io.on('connection', (socket) => {
+  console.log(`[Socket Connected] ${socket.id}`);
+
+  // Create or update room configuration
+  socket.on('create_room', ({ customCode, roleConfig, hostName, initialPlayerNames }, callback) => {
+    let roomCode = customCode ? customCode.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '') : '';
+    if (!roomCode) {
+      roomCode = generateRandomCode().toLowerCase();
+    }
+
+    if (rooms[roomCode] && rooms[roomCode].gameState !== 'LOBBY' && rooms[roomCode].hostSocketId !== socket.id) {
+      return callback({ success: false, message: 'Mã phòng này đã tồn tại và đang trong trận đấu!' });
+    }
+
+    if (!rooms[roomCode]) {
+      rooms[roomCode] = {
+        code: roomCode,
+        hostSocketId: socket.id,
+        hostName: hostName || 'Quản trò (Host)',
+        roleConfig: roleConfig || {},
+        players: [],
+        gameState: 'LOBBY',
+        currentCalledRole: null,
+        nightActions: {},
+        dayVotes: {},
+        nightLogs: [],
+        spectatorLogs: [],
+        gameHistory: []
+      };
+    } else {
+      rooms[roomCode].hostSocketId = socket.id;
+      if (roleConfig) rooms[roomCode].roleConfig = roleConfig;
+    }
+
+    if (Array.isArray(initialPlayerNames) && initialPlayerNames.length > 0) {
+      initialPlayerNames.forEach((pName, idx) => {
+        const trimmed = pName.trim();
+        if (trimmed && !rooms[roomCode].players.some(p => p.name.toLowerCase() === trimmed.toLowerCase())) {
+          rooms[roomCode].players.push({
+            id: 'p_' + Math.random().toString(36).substring(2, 9),
+            socketId: idx === 0 ? socket.id : 'bot_' + Math.random().toString(36).substring(2, 7),
+            name: trimmed,
+            isHost: idx === 0,
+            isAlive: true,
+            role: idx === 0 ? 'QUAN_TRO' : null,
+            connected: true,
+            audioState: {
+              mic: true,
+              livingSpeaker: true,
+              deadSpeaker: true
+            }
+          });
+        }
+      });
+    }
+
+    socket.join(roomCode);
+    socket.roomCode = roomCode;
+
+    io.to(roomCode).emit('room_updated', rooms[roomCode]);
+    callback({ success: true, roomCode, room: rooms[roomCode] });
+  });
+
+  // Join Room
+  socket.on('join_room', ({ roomCode, playerName }, callback) => {
+    const cleanCode = (roomCode || '').trim().toLowerCase();
+    const room = rooms[cleanCode];
+
+    if (!room) {
+      return callback({ success: false, message: 'Không tìm thấy phòng chơi này!' });
+    }
+
+    const cleanName = (playerName || '').trim();
+    let existingPlayer = room.players.find(p => p.socketId === socket.id || (cleanName !== '' && p.name.toLowerCase() === cleanName.toLowerCase()));
+
+    if (existingPlayer) {
+      existingPlayer.socketId = socket.id;
+      existingPlayer.connected = true;
+      if (cleanName) existingPlayer.name = cleanName;
+    } else {
+      if (room.gameState !== 'LOBBY' && room.gameState !== 'ENDED') {
+        return callback({ success: false, message: 'Phòng đã bắt đầu trận đấu, không thể tham gia!' });
+      }
+
+      const isHost = (socket.id === room.hostSocketId);
+      const newPlayer = {
+        id: 'p_' + Math.random().toString(36).substring(2, 9),
+        socketId: socket.id,
+        name: cleanName || (isHost ? 'Quản trò (Host)' : `Người chơi ${room.players.length + 1}`),
+        isHost: isHost,
+        isAlive: true,
+        role: isHost ? 'QUAN_TRO' : null,
+        connected: true,
+        audioState: {
+          mic: true,
+          livingSpeaker: true,
+          deadSpeaker: true
+        }
+      };
+      room.players.push(newPlayer);
+    }
+
+    socket.join(cleanCode);
+    socket.roomCode = cleanCode;
+
+    io.to(cleanCode).emit('room_updated', room);
+    callback({ success: true, roomCode: cleanCode, room, player: room.players.find(p => p.socketId === socket.id) });
+  });
+
+  // Host starts game
+  socket.on('start_game', ({ roomCode }, callback) => {
+    const room = rooms[roomCode];
+    if (!room || room.hostSocketId !== socket.id) {
+      return callback({ success: false, message: 'Chỉ chủ phòng mới có quyền bắt đầu!' });
+    }
+
+    let totalRolesRequired = 0;
+    const roleDeck = [];
+    Object.entries(room.roleConfig).forEach(([roleKey, count]) => {
+      const cnt = Number(count) || 0;
+      totalRolesRequired += cnt;
+      for (let i = 0; i < cnt; i++) {
+        roleDeck.push(roleKey);
+      }
+    });
+
+    if (totalRolesRequired === 0) {
+      return callback({ success: false, message: 'Vui lòng chọn ít nhất 1 vai trò trước khi chia bài!' });
+    }
+
+    const playingMembers = room.players.filter(p => !p.isHost);
+
+    if (playingMembers.length !== totalRolesRequired) {
+      return callback({
+        success: false,
+        message: `Số người chơi trong phòng (${playingMembers.length}) chưa đủ so với tổng số vai trò đã chọn (${totalRolesRequired})! (Quản trò làm Host điều hành, không nhận bài).`
+      });
+    }
+
+    const shuffledDeck = shuffleArray(roleDeck);
+    playingMembers.forEach((player, idx) => {
+      player.role = shuffledDeck[idx];
+      player.isAlive = true;
+    });
+
+    const hostPlayer = room.players.find(p => p.isHost);
+    if (hostPlayer) {
+      hostPlayer.role = 'QUAN_TRO';
+      hostPlayer.isAlive = true;
+    }
+
+    room.gameState = 'NIGHT';
+    room.currentCalledRole = null;
+    room.nightActions = {};
+    room.dayVotes = {};
+
+    const startMsg = `${getFormattedTimestamp()} Trận đấu đã bắt đầu! Đêm đầu tiên buông xuống...`;
+    room.nightLogs = [startMsg];
+    room.spectatorLogs = [startMsg];
+
+    io.to(roomCode).emit('game_started', room);
+    io.to(roomCode).emit('room_updated', room);
+
+    room.players.forEach(p => {
+      io.to(p.socketId).emit('your_secret_role', { role: p.role });
+    });
+
+    callback({ success: true });
+  });
+
+  // Host calls role in Night Phase
+  socket.on('host_call_role', ({ roomCode, roleKey }) => {
+    const room = rooms[roomCode];
+    if (!room || room.hostSocketId !== socket.id) return;
+
+    room.currentCalledRole = roleKey;
+    const targets = room.players.filter(p => p.role === roleKey && p.isAlive && !p.isHost);
+
+    io.to(roomCode).emit('role_called_broadcast', { roleKey, currentCalledRole: roleKey });
+
+    targets.forEach(t => {
+      io.to(t.socketId).emit('your_turn_to_act', { roleKey, roomState: room });
+    });
+
+    const roleDef = ALL_ROLES.find(r => r.key === roleKey);
+    const roleName = roleDef ? roleDef.name : roleKey;
+
+    room.nightLogs.push(`${getFormattedTimestamp()} Quản trò gọi vai trò: ${roleName}`);
+    room.spectatorLogs.push(`${getFormattedTimestamp()} 🌙 Quản trò gọi vai trò [${roleName}] thức dậy...`);
+
+    io.to(room.hostSocketId).emit('night_log_updated', room.nightLogs);
+    io.to(roomCode).emit('room_updated', room);
+  });
+
+  // Player submits night action (Recorded silently, NOT executed until morning!)
+  socket.on('player_submit_action', ({ roomCode, actionType, targetPlayerId, targetPlayerId2, note }) => {
+    const room = rooms[roomCode];
+    if (!room) return;
+
+    const actingPlayer = room.players.find(p => p.socketId === socket.id);
+    if (!actingPlayer || actingPlayer.isHost) return;
+
+    const target1 = room.players.find(p => p.id === targetPlayerId);
+    const target2 = room.players.find(p => p.id === targetPlayerId2);
+
+    room.nightActions[actingPlayer.role] = {
+      actorId: actingPlayer.id,
+      actorName: actingPlayer.name,
+      role: actingPlayer.role,
+      actionType,
+      targetPlayerId,
+      targetName: target1 ? target1.name : null,
+      target2Name: target2 ? target2.name : null,
+      note
+    };
+
+    let logMessage = `${getFormattedTimestamp()} [HÀNH ĐỘNG ĐÊM] ${actingPlayer.name} (${actingPlayer.role})`;
+    if (target1) logMessage += ` chọn mục tiêu: ${target1.name}`;
+    if (target2) logMessage += ` và ${target2.name}`;
+
+    room.nightLogs.push(logMessage);
+
+    const roleDef = ALL_ROLES.find(r => r.key === actingPlayer.role);
+    const roleName = roleDef ? roleDef.name : actingPlayer.role;
+    room.spectatorLogs.push(`${getFormattedTimestamp()} ✨ Vai trò [${roleName}] đã hoàn thành lượt chọn.`);
+
+    io.to(room.hostSocketId).emit('night_action_received', {
+      role: actingPlayer.role,
+      actor: actingPlayer.name,
+      actionType,
+      target: target1,
+      target2,
+      logs: room.nightLogs
+    });
+
+    if (actingPlayer.role === 'TIEN_TRI' || actingPlayer.role === 'SOI_TIEN_TRI') {
+      const isWolf = target1 && (target1.role.startsWith('MA_SOI') || target1.role.startsWith('SOI_'));
+      socket.emit('inspection_result', {
+        targetName: target1?.name,
+        targetRole: target1?.role,
+        isWolf: isWolf
+      });
+    }
+
+    io.to(roomCode).emit('room_updated', room);
+  });
+
+  // Host changes Mic Target Channel
+  socket.on('host_mic_target_changed', ({ roomCode, target }) => {
+    const room = rooms[roomCode];
+    if (!room || room.hostSocketId !== socket.id) return;
+
+    const targetLabel = target === 'ALL' ? 'Tất cả (Cả 2 bên)' : (target === 'LIVING_ONLY' ? 'Chỉ riêng Người Sống 💚' : 'Chỉ riêng Người Chết 👻');
+    const msg = `${getFormattedTimestamp()} 🎙️ Quản trò chuyển kênh phát giọng nói sang: ${targetLabel}`;
+    room.nightLogs.push(msg);
+    room.spectatorLogs.push(msg);
+    io.to(roomCode).emit('room_updated', room);
+  });
+
+  // Day Vote from living player
+  socket.on('submit_day_vote', ({ roomCode, targetPlayerId }) => {
+    const room = rooms[roomCode];
+    if (!room || room.gameState !== 'DAY') return;
+
+    const voter = room.players.find(p => p.socketId === socket.id);
+    if (!voter || !voter.isAlive || voter.isHost) return;
+
+    if (!room.dayVotes) room.dayVotes = {};
+    room.dayVotes[voter.id] = targetPlayerId;
+
+    const targetPlayer = room.players.find(p => p.id === targetPlayerId);
+    const targetLabel = targetPlayerId === 'SKIP' ? 'Bỏ qua phiếu bầu 🚫' : (targetPlayer ? targetPlayer.name : 'Không rõ');
+
+    const msg = `${getFormattedTimestamp()} 🗳️ [BẦU CHỌN BAN NGÀY] ${voter.name} đã bỏ phiếu.`;
+    const hostMsg = `${getFormattedTimestamp()} 🗳️ [BẦU CHỌN BAN NGÀY] ${voter.name} bỏ phiếu cho: ${targetLabel}`;
+
+    room.nightLogs.push(hostMsg);
+    room.spectatorLogs.push(msg);
+    io.to(roomCode).emit('room_updated', room);
+  });
+
+  // Host executes top voted result
+  socket.on('host_execute_vote_result', ({ roomCode }) => {
+    const room = rooms[roomCode];
+    if (!room || room.hostSocketId !== socket.id || !room.dayVotes) return;
+
+    const counts = {};
+    Object.values(room.dayVotes).forEach(target => {
+      counts[target] = (counts[target] || 0) + 1;
+    });
+
+    let topTarget = null;
+    let maxVotes = 0;
+    Object.entries(counts).forEach(([targetId, cnt]) => {
+      if (cnt > maxVotes) {
+        maxVotes = cnt;
+        topTarget = targetId;
+      }
+    });
+
+    let resultMsg = '';
+    if (!topTarget || topTarget === 'SKIP') {
+      resultMsg = `${getFormattedTimestamp()} ⚖️ [BẦU CHỌN BAN NGÀY] Kết quả: Số đông chọn BỎ QUA. Không ai bị treo cổ.`;
+    } else {
+      const hangedPlayer = room.players.find(p => p.id === topTarget);
+      if (hangedPlayer) {
+        hangedPlayer.isAlive = false;
+        resultMsg = `${getFormattedTimestamp()} ⚖️ [BẦU CHỌN BAN NGÀY] ${hangedPlayer.name} bị treo cổ với ${maxVotes} phiếu bầu!`;
+      }
+    }
+
+    if (resultMsg) {
+      room.nightLogs.push(resultMsg);
+      room.spectatorLogs.push(resultMsg);
+    }
+
+    room.dayVotes = {};
+    io.to(roomCode).emit('room_updated', room);
+  });
+
+  // Host changes phase (Night -> Day / Day -> Night)
+  socket.on('host_change_phase', ({ roomCode, nextPhase }) => {
+    const room = rooms[roomCode];
+    if (!room || room.hostSocketId !== socket.id) return;
+
+    // RESOLVE NIGHT CASUALTIES ONLY WHEN TRANSITIONING FROM NIGHT TO DAY!
+    if (room.gameState === 'NIGHT' && nextPhase === 'DAY') {
+      const wolfAction = room.nightActions['MA_SOI'] || room.nightActions['SOI_BANG_TRONG'] || room.nightActions['SOI_DU_THOI'];
+      const guardAction = room.nightActions['BAO_VE'];
+      const witchAction = room.nightActions['PHU_THUY'];
+
+      const wolfTargetId = wolfAction ? wolfAction.targetPlayerId : null;
+      const guardTargetId = guardAction ? guardAction.targetPlayerId : null;
+      const witchSave = witchAction && witchAction.note === 'SAVE';
+      const witchPoisonId = witchAction && witchAction.targetPlayerId ? witchAction.targetPlayerId : null;
+
+      const casualties = new Set();
+
+      // Check Werewolf bite target
+      if (wolfTargetId) {
+        const isProtected = (wolfTargetId === guardTargetId) || witchSave;
+        if (!isProtected) {
+          casualties.add(wolfTargetId);
+        }
+      }
+
+      // Check Witch poison target
+      if (witchPoisonId) {
+        casualties.add(witchPoisonId);
+      }
+
+      // Apply death status to casualties ONLY NOW (Morning announcement!)
+      const deadNames = [];
+      casualties.forEach(victimId => {
+        const victim = room.players.find(p => p.id === victimId);
+        if (victim && victim.isAlive) {
+          victim.isAlive = false;
+          deadNames.push(victim.name);
+        }
+      });
+
+      // Morning Announcement Message
+      let morningMsg = '';
+      if (deadNames.length > 0) {
+        morningMsg = `${getFormattedTimestamp()} ☀️ [BAN NGÀY] Buổi sáng đã đến! Đêm qua, người chơi ${deadNames.join(', ')} đã bị hạ gục 💀`;
+      } else {
+        morningMsg = `${getFormattedTimestamp()} ☀️ [BAN NGÀY] Buổi sáng đã đến! Đêm qua là một đêm bình yên, không ai qua đời 💚`;
+      }
+
+      room.nightLogs.push(morningMsg);
+      room.spectatorLogs.push(morningMsg);
+
+      room.currentCalledRole = null;
+      room.dayVotes = {};
+      room.nightActions = {};
+    } else if (nextPhase === 'NIGHT') {
+      const nightStartMsg = `${getFormattedTimestamp()} 🌙 Màn đêm đã buông xuống... Tất cả mọi người đi ngủ!`;
+      room.nightLogs.push(nightStartMsg);
+      room.spectatorLogs.push(nightStartMsg);
+    }
+
+    room.gameState = nextPhase;
+    io.to(roomCode).emit('phase_changed', { gameState: nextPhase, room });
+    io.to(roomCode).emit('room_updated', room);
+  });
+
+  // Host toggles player death state manually (Kill/Revive)
+  socket.on('host_toggle_player_alive', ({ roomCode, playerId, isAlive }) => {
+    const room = rooms[roomCode];
+    if (!room || room.hostSocketId !== socket.id) return;
+
+    const player = room.players.find(p => p.id === playerId);
+    if (player) {
+      player.isAlive = isAlive;
+      const statusMsg = `${getFormattedTimestamp()} [THÔNG BÁO] Người chơi ${player.name} ${isAlive ? 'đã được hồi sinh 💚' : 'đã tử vong 💀'}`;
+      room.nightLogs.push(statusMsg);
+      room.spectatorLogs.push(statusMsg);
+      io.to(roomCode).emit('player_status_changed', { playerId, isAlive, room });
+      io.to(roomCode).emit('room_updated', room);
+    }
+  });
+
+  // Host ends game
+  socket.on('host_end_game', ({ roomCode }) => {
+    const room = rooms[roomCode];
+    if (!room || room.hostSocketId !== socket.id) return;
+
+    room.gameState = 'ENDED';
+    room.currentCalledRole = null;
+    const endMsg = `${getFormattedTimestamp()} 🏆 TRẬN ĐẤU ĐÃ KẾT THÚC! Toàn bộ vai trò và nhật ký hành động được công khai cho tất cả mọi người.`;
+    room.nightLogs.push(endMsg);
+    room.spectatorLogs.push(endMsg);
+
+    io.to(roomCode).emit('room_updated', room);
+  });
+
+  // Toggle Audio Status
+  socket.on('toggle_audio_state', ({ roomCode, audioState }) => {
+    const room = rooms[roomCode];
+    if (!room) return;
+
+    const player = room.players.find(p => p.socketId === socket.id);
+    if (player) {
+      player.audioState = audioState;
+      io.to(roomCode).emit('player_audio_updated', { playerId: player.id, audioState });
+      io.to(roomCode).emit('room_updated', room);
+    }
+  });
+
+  // Host Mic Target Changed
+  socket.on('host_mic_target_changed', ({ roomCode, target }) => {
+    const room = rooms[roomCode];
+    if (!room || room.hostSocketId !== socket.id) return;
+
+    room.hostMicTarget = target;
+    io.to(roomCode).emit('host_mic_target_changed', { target, room });
+    io.to(roomCode).emit('room_updated', room);
+  });
+
+  // ZegoCloud Token Generator Helper
+  function generateZegoToken(appId, serverSecret, userId, effectiveTimeInSeconds = 86400) {
+    if (!appId || !serverSecret || !userId) return '';
+    const now = Math.floor(Date.now() / 1000);
+    const expire = now + effectiveTimeInSeconds;
+
+    const tokenPayload = {
+      app_id: Number(appId),
+      user_id: String(userId),
+      nonce: Math.floor(Math.random() * 2147483647),
+      ctime: now,
+      expire: expire,
+      payload: ''
+    };
+
+    const strPayload = JSON.stringify(tokenPayload);
+    const secretKey = serverSecret.length >= 32 ? serverSecret.substring(0, 32) : serverSecret.padEnd(32, '0');
+    const iv = crypto.randomBytes(16);
+
+    const cipher = crypto.createCipheriv('aes-256-cbc', Buffer.from(secretKey, 'utf8'), iv);
+    let encrypted = cipher.update(strPayload, 'utf8');
+    encrypted = Buffer.concat([encrypted, cipher.final()]);
+
+    const expireBuf = Buffer.alloc(4);
+    expireBuf.writeUInt32BE(expire, 0);
+
+    const ivLenBuf = Buffer.alloc(2);
+    ivLenBuf.writeUInt16BE(16, 0);
+
+    const encLenBuf = Buffer.alloc(2);
+    encLenBuf.writeUInt16BE(encrypted.length, 0);
+
+    const tokenBuffer = Buffer.concat([expireBuf, ivLenBuf, iv, encLenBuf, encrypted]);
+    return '04' + tokenBuffer.toString('base64');
+  }
+
+  // ZegoCloud Token Handler
+  socket.on('get_zego_token', async ({ roomCode, identity, name }, callback) => {
+    try {
+      const zegoAppId = 215081463;
+      const zegoServerSecret = '0cbbfd5578a47e4261707a6ad83d55f9';
+      const userId = String(identity || socket.id);
+
+      const token = generateZegoToken(zegoAppId, zegoServerSecret, userId);
+      if (typeof callback === 'function') {
+        callback({ success: true, token });
+      }
+    } catch (err) {
+      console.error('Zego token error:', err);
+      if (typeof callback === 'function') {
+        callback({ success: false, message: err?.message || String(err) });
+      }
+    }
+  });
+
+  // PeerJS Voice Signaling via Socket.io
+  // When a player's PeerJS peer is ready, broadcast to all others in room
+  socket.on('voice_peer_ready', ({ roomCode, peerId }) => {
+    const code = (roomCode || '').trim().toLowerCase();
+    if (!code || !rooms[code]) return;
+
+    // Store peerId on socket for cleanup
+    socket.voicePeerId = peerId;
+    socket.voiceRoomCode = code;
+
+    // Tell all OTHER sockets in this room about the new peer
+    socket.to(code).emit('voice_peer_joined', { peerId });
+
+    // Also tell the new peer about all existing peers in the room
+    const roomSockets = io.sockets.adapter.rooms.get(code);
+    if (roomSockets) {
+      for (const sid of roomSockets) {
+        if (sid !== socket.id) {
+          const otherSocket = io.sockets.sockets.get(sid);
+          if (otherSocket && otherSocket.voicePeerId) {
+            socket.emit('voice_peer_joined', { peerId: otherSocket.voicePeerId });
+          }
+        }
+      }
+    }
+  });
+
+  // When a player is leaving voice
+  socket.on('voice_peer_leaving', ({ roomCode, peerId }) => {
+    const code = (roomCode || '').trim().toLowerCase();
+    if (code) {
+      socket.to(code).emit('voice_peer_left', { peerId });
+    }
+    socket.voicePeerId = null;
+  });
+
+  // Leave Room handler
+  socket.on('leave_room', ({ roomCode }) => {
+    const code = (roomCode || socket.roomCode || '').trim().toLowerCase();
+    if (code && rooms[code]) {
+      const room = rooms[code];
+      room.players = room.players.filter(p => p.socketId !== socket.id);
+      socket.leave(code);
+      socket.roomCode = null;
+      io.to(code).emit('room_updated', room);
+    }
+  });
+
+  // Disconnect handler
+  socket.on('disconnect', () => {
+    console.log(`[Socket Disconnected] ${socket.id}`);
+
+    // Clean up voice peer
+    if (socket.voicePeerId && socket.voiceRoomCode) {
+      io.to(socket.voiceRoomCode).emit('voice_peer_left', { peerId: socket.voicePeerId });
+    }
+
+    if (socket.roomCode && rooms[socket.roomCode]) {
+      const room = rooms[socket.roomCode];
+      if (room.gameState === 'LOBBY') {
+        room.players = room.players.filter(p => p.socketId !== socket.id);
+      } else {
+        const player = room.players.find(p => p.socketId === socket.id);
+        if (player) {
+          player.connected = false;
+        }
+      }
+      io.to(socket.roomCode).emit('room_updated', room);
+    }
+  });
+});
+
+// Single Page Application wildcard route fallback for React Router / SPA
+if (fs.existsSync(distPath)) {
+  app.get('*', (req, res) => {
+    res.sendFile(path.join(distPath, 'index.html'));
+  });
+}
+
+const PORT = process.env.PORT || 3001;
+server.listen(PORT, () => {
+  console.log(`Server Ma Sói Online running on http://localhost:${PORT}`);
+});
