@@ -20,10 +20,22 @@
   --text-primary: #f1f0f7;
   --text-secondary: #8a85a0;
   --text-muted: #5a5572;
+  /* iOS safe area */
+  --sat: env(safe-area-inset-top, 0px);
+  --sab: env(safe-area-inset-bottom, 0px);
+  --sal: env(safe-area-inset-left, 0px);
+  --sar: env(safe-area-inset-right, 0px);
 }
 
 * {
   box-sizing: border-box;
+  -webkit-tap-highlight-color: transparent;
+}
+
+html {
+  -webkit-text-size-adjust: 100%;
+  text-size-adjust: 100%;
+  overscroll-behavior: none;
 }
 
 body {
@@ -34,10 +46,14 @@ body {
   overflow-x: hidden;
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
+  padding-top: var(--sat);
+  padding-bottom: var(--sab);
+  padding-left: var(--sal);
+  padding-right: var(--sar);
 }
 
 /* Scrollbars */
-::-webkit-scrollbar { width: 6px; height: 6px; }
+::-webkit-scrollbar { width: 4px; height: 4px; }
 ::-webkit-scrollbar-track { background: transparent; }
 ::-webkit-scrollbar-thumb { background: rgba(139, 92, 246, 0.2); border-radius: 10px; }
 ::-webkit-scrollbar-thumb:hover { background: rgba(139, 92, 246, 0.4); }
@@ -55,17 +71,22 @@ body {
   background: var(--bg-card);
   border: 1px solid var(--border-subtle);
   transition: all 0.25s cubic-bezier(0.4, 0, 0.2, 1);
-  border-radius: 16px;
+  border-radius: 14px;
 }
 
 .role-card:hover {
   border-color: var(--border-active);
   background: var(--bg-card-hover);
   box-shadow: 0 0 30px rgba(139, 92, 246, 0.08);
-  transform: translateY(-1px);
 }
 
-/* Counter Button */
+@media (hover: hover) {
+  .role-card:hover {
+    transform: translateY(-1px);
+  }
+}
+
+/* Counter Button - larger touch target on mobile */
 .counter-btn {
   background: rgba(139, 92, 246, 0.08);
   border: 1px solid rgba(139, 92, 246, 0.15);
@@ -73,6 +94,8 @@ body {
   border-radius: 10px;
   transition: all 0.15s ease;
   font-weight: 700;
+  min-width: 32px;
+  min-height: 32px;
 }
 
 .counter-btn:hover:not(:disabled) {
@@ -96,14 +119,16 @@ body {
   letter-spacing: 0.01em;
 }
 
-.btn-primary:hover:not(:disabled) {
-  background: linear-gradient(135deg, #9b6ff7 0%, #7577f5 100%);
-  box-shadow: 0 6px 30px rgba(139, 92, 246, 0.45), 0 0 80px rgba(139, 92, 246, 0.12);
-  transform: translateY(-2px);
+@media (hover: hover) {
+  .btn-primary:hover:not(:disabled) {
+    background: linear-gradient(135deg, #9b6ff7 0%, #7577f5 100%);
+    box-shadow: 0 6px 30px rgba(139, 92, 246, 0.45), 0 0 80px rgba(139, 92, 246, 0.12);
+    transform: translateY(-2px);
+  }
 }
 
 .btn-primary:active:not(:disabled) {
-  transform: translateY(0);
+  transform: scale(0.97);
 }
 
 .btn-primary:disabled {
@@ -158,4 +183,36 @@ body {
   background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)' opacity='0.03'/%3E%3C/svg%3E");
   pointer-events: none;
   z-index: 0;
+}
+
+/* ─── MOBILE SPECIFIC ─── */
+
+/* Prevent text selection on game UI elements */
+button, .glass-panel, .role-card, .counter-btn {
+  -webkit-user-select: none;
+  user-select: none;
+}
+
+/* Input fields should have 16px font to prevent iOS zoom */
+input, textarea, select {
+  font-size: 16px !important;
+}
+
+@media (min-width: 640px) {
+  input, textarea, select {
+    font-size: inherit !important;
+  }
+}
+
+/* Bottom safe area spacing for pages with VoiceChatBar */
+.pb-voice-bar {
+  padding-bottom: calc(80px + var(--sab));
+}
+
+/* Mobile touch-friendly button sizes */
+@media (max-width: 639px) {
+  .counter-btn {
+    min-width: 36px;
+    min-height: 36px;
+  }
 }

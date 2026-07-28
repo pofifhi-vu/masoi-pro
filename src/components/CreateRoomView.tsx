@@ -134,29 +134,29 @@ export const CreateRoomView: React.FC<CreateRoomViewProps> = ({ onCreateRoom, on
   );
 
   return (
-    <div className="min-h-screen bg-[#06060e] text-[#f1f0f7] pb-28 noise-bg">
+    <div className="min-h-screen bg-[#06060e] text-[#f1f0f7] pb-voice-bar noise-bg">
       {/* Header */}
-      <header className="px-6 py-4 border-b border-white/[0.04] flex items-center justify-between glass-panel sticky top-0 z-30">
-        <div className="flex items-center gap-3 cursor-pointer group" onClick={onBackToHome}>
+      <header className="px-3 sm:px-6 py-3 sm:py-4 border-b border-white/[0.04] flex items-center justify-between glass-panel sticky top-0 z-30">
+        <div className="flex items-center gap-2 sm:gap-3 cursor-pointer group" onClick={onBackToHome}>
           <ArrowLeft className="w-4 h-4 text-[#6a6580] group-hover:text-white transition-colors" />
           <div className="flex items-center gap-2">
-            <div className="w-8 h-8 rounded-xl bg-purple-500/10 border border-purple-500/15 flex items-center justify-center">
-              <PawPrint className="w-4 h-4 text-purple-400" />
+            <div className="w-7 h-7 sm:w-8 sm:h-8 rounded-lg sm:rounded-xl bg-purple-500/10 border border-purple-500/15 flex items-center justify-center">
+              <PawPrint className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-purple-400" />
             </div>
-            <h1 className="text-lg font-bold text-white">
+            <h1 className="text-base sm:text-lg font-bold text-white">
               Ma Sói <span className="gradient-text">Online</span>
             </h1>
           </div>
         </div>
 
-        <div className="flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.03] border border-white/[0.05] text-[11px] text-[#6a6580] font-medium">
+        <div className="hidden sm:flex items-center gap-2 px-3 py-1.5 rounded-full bg-white/[0.03] border border-white/[0.05] text-[11px] text-[#6a6580] font-medium">
           <Sparkles className="w-3.5 h-3.5 text-purple-400/70" />
           <span>Công cụ Quản trò</span>
         </div>
       </header>
 
       {/* Main Grid */}
-      <main className="max-w-7xl mx-auto px-4 py-6 grid grid-cols-1 lg:grid-cols-12 gap-6">
+      <main className="max-w-7xl mx-auto px-3 sm:px-4 py-4 sm:py-6 grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-6">
         {/* Left Column */}
         <div className="lg:col-span-4 flex flex-col gap-4">
           <div className="glass-panel rounded-2xl p-5 flex flex-col flex-1">
@@ -289,9 +289,9 @@ export const CreateRoomView: React.FC<CreateRoomViewProps> = ({ onCreateRoom, on
       </main>
 
       {/* Bottom Summary Bar */}
-      <footer className="fixed bottom-0 left-0 right-0 glass-panel border-t border-white/[0.06] px-6 py-4 z-40">
-        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-4">
-          <div className="flex items-center gap-6 text-xs">
+      <footer className="fixed bottom-0 left-0 right-0 glass-panel border-t border-white/[0.06] px-3 sm:px-6 py-3 sm:py-4 z-40">
+        <div className="max-w-7xl mx-auto flex flex-col sm:flex-row items-center justify-between gap-3 sm:gap-4">
+          <div className="flex items-center gap-4 sm:gap-6 text-xs w-full sm:w-auto justify-center sm:justify-start">
             <div className="flex flex-col">
               <span className="text-[10px] text-[#5a5572] uppercase font-bold tracking-[0.15em]">Vai trò</span>
               <span className="text-base font-black text-white">{totalRoles}</span>
@@ -317,7 +317,7 @@ export const CreateRoomView: React.FC<CreateRoomViewProps> = ({ onCreateRoom, on
           <button
             onClick={handleCreateSubmit}
             disabled={totalRoles === 0}
-            className="btn-primary px-8 py-3.5 text-white text-sm flex items-center gap-2.5 group"
+            className="btn-primary w-full sm:w-auto px-6 sm:px-8 py-3 sm:py-3.5 text-white text-sm flex items-center justify-center gap-2.5 group"
           >
             <Sparkles className="w-4 h-4" />
             <span>Tạo phòng & Chia bài</span>

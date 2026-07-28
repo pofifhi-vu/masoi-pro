@@ -100,7 +100,7 @@ export const GameView: React.FC<GameViewProps> = ({
   // ─── GAME ENDED SCREEN ───
   if (room.gameState === 'ENDED') {
     return (
-      <div className="min-h-screen bg-[#06060e] text-[#f1f0f7] p-4 sm:p-6 pb-28 max-w-6xl mx-auto noise-bg">
+      <div className="min-h-screen bg-[#06060e] text-[#f1f0f7] p-3 sm:p-6 pb-voice-bar max-w-6xl mx-auto noise-bg">
         <header className="text-center my-8 animate-slide-up">
           <div className="w-20 h-20 rounded-3xl bg-amber-500/10 border border-amber-500/20 flex items-center justify-center mx-auto mb-4 glow-ring">
             <Trophy className="w-10 h-10 text-amber-400" />
@@ -181,28 +181,28 @@ export const GameView: React.FC<GameViewProps> = ({
 
   // ─── GAME IN PROGRESS ───
   return (
-    <div className="min-h-screen bg-[#06060e] text-[#f1f0f7] p-4 sm:p-6 pb-28 noise-bg">
+    <div className="min-h-screen bg-[#06060e] text-[#f1f0f7] p-3 sm:p-6 pb-voice-bar noise-bg">
       {/* Header */}
-      <header className="max-w-6xl mx-auto flex items-center justify-between mb-6 pb-4 border-b border-white/[0.04] animate-slide-up">
-        <div className="flex items-center gap-3">
-          <div className={`p-3 rounded-xl border ${
+      <header className="max-w-6xl mx-auto flex items-center justify-between mb-4 sm:mb-6 pb-3 sm:pb-4 border-b border-white/[0.04] animate-slide-up">
+        <div className="flex items-center gap-2 sm:gap-3">
+          <div className={`p-2 sm:p-3 rounded-xl border ${
             room.gameState === 'NIGHT'
               ? 'bg-indigo-500/10 border-indigo-500/20 text-indigo-300'
               : 'bg-amber-500/10 border-amber-500/20 text-amber-300'
           }`}>
-            {room.gameState === 'NIGHT' ? <Moon className="w-5 h-5" /> : <Sun className="w-5 h-5" />}
+            {room.gameState === 'NIGHT' ? <Moon className="w-4 h-4 sm:w-5 sm:h-5" /> : <Sun className="w-4 h-4 sm:w-5 sm:h-5" />}
           </div>
           <div>
-            <h1 className="text-lg font-black text-white flex items-center gap-2">
+            <h1 className="text-base sm:text-lg font-black text-white flex items-center gap-1.5 sm:gap-2">
               {room.gameState === 'NIGHT' ? '🌙 Ban Đêm' : '☀️ Ban Ngày'}
             </h1>
             {room.gameState === 'NIGHT' && room.currentCalledRole && (
-              <div className="text-xs font-bold text-amber-300 animate-pulse flex items-center gap-1 mt-0.5">
-                <Sparkles className="w-3.5 h-3.5 text-amber-400" />
+              <div className="text-[10px] sm:text-xs font-bold text-amber-300 animate-pulse flex items-center gap-1 mt-0.5">
+                <Sparkles className="w-3 h-3 sm:w-3.5 sm:h-3.5 text-amber-400" />
                 <span>Đang gọi: {ALL_ROLES.find(r => r.key === room.currentCalledRole)?.name || room.currentCalledRole}</span>
               </div>
             )}
-            <p className="text-[11px] text-[#5a5572] mt-0.5">
+            <p className="text-[10px] sm:text-[11px] text-[#5a5572] mt-0.5">
               Phòng: <span className="font-mono text-purple-300 font-bold">{room.code}</span>
             </p>
           </div>
@@ -211,14 +211,14 @@ export const GameView: React.FC<GameViewProps> = ({
         {/* Secret Role Toggle */}
         <button
           onClick={() => setShowSecretRoleCard(!showSecretRoleCard)}
-          className="flex items-center gap-2 px-4 py-2.5 rounded-xl glass-panel hover:border-purple-500/30 text-xs font-bold text-purple-200 transition-all"
+          className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl glass-panel hover:border-purple-500/30 text-xs font-bold text-purple-200 transition-all"
         >
           {showSecretRoleCard ? <EyeOff className="w-4 h-4 text-purple-400" /> : <Eye className="w-4 h-4 text-purple-400" />}
           <span className="hidden sm:inline">{showSecretRoleCard ? 'Ẩn vai trò' : 'Xem vai trò'}</span>
         </button>
       </header>
 
-      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-5">
+      <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5">
         {/* Secret Role Card */}
         {showSecretRoleCard && myRoleDef && (
           <div className="lg:col-span-12 bg-gradient-to-r from-purple-500/[0.08] to-indigo-500/[0.08] border border-purple-500/20 rounded-2xl p-6 animate-slide-up">
@@ -249,8 +249,8 @@ export const GameView: React.FC<GameViewProps> = ({
         <div className={`lg:col-span-${isHost ? '7' : '12'} flex flex-col gap-5`}>
           {isHost ? (
             /* ─── HOST ADMIN PANEL ─── */
-            <div className="glass-panel rounded-2xl p-5 flex flex-col gap-5 animate-slide-up" style={{ animationDelay: '0.1s' }}>
-              <div className="flex items-center justify-between border-b border-white/[0.06] pb-4 flex-wrap gap-3">
+            <div className="glass-panel rounded-2xl p-4 sm:p-5 flex flex-col gap-4 sm:gap-5 animate-slide-up" style={{ animationDelay: '0.1s' }}>
+              <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 sm:pb-4 flex-wrap gap-2 sm:gap-3">
                 <div className="flex items-center gap-2.5">
                   <div className="w-8 h-8 rounded-xl bg-amber-500/10 border border-amber-500/15 flex items-center justify-center">
                     <Crown className="w-4 h-4 text-amber-400" />
@@ -304,7 +304,7 @@ export const GameView: React.FC<GameViewProps> = ({
                   <Moon className="w-3.5 h-3.5 text-purple-400/70" />
                   Gọi vai trò thức dậy
                 </h3>
-                <div className="grid grid-cols-2 sm:grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   {magicalRolesInGame.map(role => (
                     <button
                       key={role.key}
