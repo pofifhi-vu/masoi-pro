@@ -67,11 +67,11 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onSelectCreate, onSelect
         </div>
 
         {/* Quote Section */}
-        <div className="mt-10 sm:mt-12 px-5 py-3.5 rounded-2xl bg-purple-500/[0.04] border border-purple-500/10 backdrop-blur-sm max-w-xs flex flex-col items-center shadow-lg shadow-purple-950/20">
-          <p className="text-xs sm:text-sm font-semibold italic text-purple-200/90 tracking-wide">
-            "Chán bố mày đi"
+        <div className="mt-10 sm:mt-12 px-5 py-3 rounded-2xl bg-white/[0.02] border border-white/[0.04] backdrop-blur-sm max-w-xs flex flex-col items-center opacity-75">
+          <p className="text-xs sm:text-sm font-medium italic text-[#8a85a0] tracking-wide">
+            "Chan bố mày đi"
           </p>
-          <span className="text-[10px] sm:text-[11px] text-[#8a85a0] font-medium mt-1">
+          <span className="text-[10px] sm:text-[11px] text-[#5a5572] font-normal mt-0.5">
             — Phạm Trung Đức Anh —
           </span>
         </div>
