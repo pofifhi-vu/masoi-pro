@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import {
   Eye, EyeOff, Shield, PawPrint, Sun, Moon, Skull, Heart, MicOff,
-  UserCheck, AlertCircle, Play, Sparkles, CheckCircle2, ChevronRight, Activity, Trophy, Clock, Vote, Ban, Ghost, Crown, Users
+  UserCheck, AlertCircle, Play, Sparkles, CheckCircle2, ChevronRight, Activity, Trophy, Clock, Vote, Ban, Ghost, Crown, Users, Lock
 } from 'lucide-react';
 import { RoomState, Player } from '../types/game';
 import { ALL_ROLES } from '../constants/roles';
@@ -26,11 +26,12 @@ export const GameView: React.FC<GameViewProps> = ({
   inspectionResult,
   onClearInspection
 }) => {
-  const [showSecretRoleCard, setShowSecretRoleCard] = useState(false);
+  // Default to true so every player immediately sees their role card when entering game!
+  const [showSecretRoleCard, setShowSecretRoleCard] = useState<boolean>(true);
   const [selectedTargetId, setSelectedTargetId] = useState<string>('');
   const [selectedTargetId2, setSelectedTargetId2] = useState<string>('');
   const [witchOption, setWitchOption] = useState<'SAVE' | 'POISON' | 'NONE'>('NONE');
-  const [actionSubmitted, setActionSubmitted] = useState(false);
+  const [actionSubmitted, setActionSubmitted] = useState<boolean>(false);
   const [myDayVote, setMyDayVote] = useState<string>('');
 
   const isHost = currentPlayer?.isHost || false;
@@ -208,45 +209,62 @@ export const GameView: React.FC<GameViewProps> = ({
           </div>
         </div>
 
-        {/* Secret Role Toggle */}
+        {/* Secret Role Toggle Button */}
         <button
           onClick={() => setShowSecretRoleCard(!showSecretRoleCard)}
           className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl glass-panel hover:border-purple-500/30 text-xs font-bold text-purple-200 transition-all"
         >
           {showSecretRoleCard ? <EyeOff className="w-4 h-4 text-purple-400" /> : <Eye className="w-4 h-4 text-purple-400" />}
-          <span className="hidden sm:inline">{showSecretRoleCard ? 'Ẩn vai trò' : 'Xem vai trò'}</span>
+          <span>{showSecretRoleCard ? 'Ẩn lá bài' : 'Xem lá bài'}</span>
         </button>
       </header>
 
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5">
-        {/* Secret Role Card */}
+        {/* Secret Role Card - Visible only to local player */}
         {showSecretRoleCard && myRoleDef && (
-          <div className="lg:col-span-12 bg-gradient-to-r from-purple-500/[0.08] to-indigo-500/[0.08] border border-purple-500/20 rounded-2xl p-6 animate-slide-up">
-            <div className="flex flex-col sm:flex-row items-center justify-between gap-4">
-              <div className="flex items-center gap-4">
-                <div className="w-14 h-14 rounded-2xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-2xl">
-                  🎭
+          <div className="lg:col-span-12 bg-gradient-to-r from-purple-900/30 via-indigo-900/20 to-purple-900/30 border border-purple-500/30 rounded-2xl p-4 sm:p-5 animate-slide-up shadow-xl relative overflow-hidden">
+            <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 relative z-10">
+              <div className="flex items-center gap-3.5 sm:gap-4">
+                <div className={`w-12 h-12 sm:w-14 sm:h-14 rounded-2xl flex items-center justify-center text-2xl shrink-0 border ${
+                  myRoleDef.faction === 'WEREWOLF' ? 'bg-rose-500/15 border-rose-500/30 text-rose-300' :
+                  myRoleDef.faction === 'NEUTRAL' ? 'bg-amber-500/15 border-amber-500/30 text-amber-300' :
+                  'bg-blue-500/15 border-blue-500/30 text-blue-300'
+                }`}>
+                  {myRoleDef.faction === 'WEREWOLF' ? '🐺' : myRoleDef.faction === 'NEUTRAL' ? '🎭' : '🛡️'}
                 </div>
                 <div>
-                  <div className="text-[10px] font-bold text-[#6a6580] uppercase tracking-[0.15em]">
-                    {myRoleDef.factionLabel}
+                  <div className="flex items-center gap-2 flex-wrap">
+                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-purple-300 bg-purple-500/20 border border-purple-500/30 px-2 py-0.5 rounded-md">
+                      Lá Bài Của Bạn
+                    </span>
+                    <span className="text-[10px] font-bold text-emerald-400 bg-emerald-500/10 border border-emerald-500/15 px-2 py-0.5 rounded-md flex items-center gap-1">
+                      <Lock className="w-3 h-3" /> Chỉ mình bạn thấy
+                    </span>
                   </div>
-                  <h3 className="text-2xl font-black text-white">{myRoleDef.name}</h3>
-                  <p className="text-xs text-[#8a85a0] mt-0.5">{myRoleDef.description}</p>
+                  <h3 className="text-xl sm:text-2xl font-black text-white mt-1 flex items-center gap-2">
+                    {myRoleDef.name}
+                    <span className="text-xs font-bold text-[#8a85a0]">({myRoleDef.factionLabel})</span>
+                  </h3>
+                  <p className="text-xs text-[#b4afe0] mt-1 leading-relaxed max-w-2xl">{myRoleDef.description}</p>
                 </div>
               </div>
+
               <button
                 onClick={() => setShowSecretRoleCard(false)}
-                className="px-4 py-2 bg-purple-500/10 border border-purple-500/20 rounded-xl text-xs font-bold text-purple-200 hover:bg-purple-500/20 transition-all"
+                className="w-full sm:w-auto px-4 py-2 rounded-xl bg-purple-500/15 border border-purple-500/25 hover:bg-purple-500/25 text-xs font-bold text-purple-200 transition-all shrink-0 text-center"
               >
-                Đóng lá bài
+                Ẩn lá bài
               </button>
             </div>
           </div>
         )}
 
-        {/* LEFT: Admin Panel or Player View */}
-        <div className={`lg:col-span-${isHost ? '7' : '12'} flex flex-col gap-5`}>
+        {/* Main Section: Admin Panel (Host) or Player View */}
+        <div className={`${
+          isHost
+            ? (activeActionRole ? 'lg:col-span-7' : 'lg:col-span-12')
+            : (activeActionRole ? 'lg:col-span-7' : 'lg:col-span-12')
+        } flex flex-col gap-5`}>
           {isHost ? (
             /* ─── HOST ADMIN PANEL ─── */
             <div className="glass-panel rounded-2xl p-4 sm:p-5 flex flex-col gap-4 sm:gap-5 animate-slide-up" style={{ animationDelay: '0.1s' }}>
@@ -279,7 +297,7 @@ export const GameView: React.FC<GameViewProps> = ({
 
               {/* Day Vote Panel */}
               {room.gameState === 'DAY' && (
-                <div className="p-4 bg-amber-500/[0.05] border border-amber-500/15 rounded-xl flex items-center justify-between gap-4">
+                <div className="p-4 bg-amber-500/[0.05] border border-amber-500/15 rounded-xl flex items-center justify-between gap-4 flex-wrap">
                   <div>
                     <div className="text-xs font-bold text-amber-300 flex items-center gap-1.5">
                       <Vote className="w-4 h-4" />
@@ -304,7 +322,7 @@ export const GameView: React.FC<GameViewProps> = ({
                   <Moon className="w-3.5 h-3.5 text-purple-400/70" />
                   Gọi vai trò thức dậy
                 </h3>
-                <div className="grid grid-cols-2 gap-2">
+                <div className="grid grid-cols-2 sm:grid-cols-3 lg:grid-cols-4 gap-2">
                   {magicalRolesInGame.map(role => (
                     <button
                       key={role.key}
@@ -322,13 +340,13 @@ export const GameView: React.FC<GameViewProps> = ({
                 </div>
               </div>
 
-              {/* Player Roles List */}
+              {/* Host's Full Player Roles Overview */}
               <div>
                 <h3 className="text-[10px] font-bold uppercase text-[#5a5572] mb-3 tracking-[0.15em] flex items-center gap-1.5">
                   <UserCheck className="w-3.5 h-3.5 text-purple-400/70" />
-                  Danh sách vai trò
+                  Danh sách vai trò từng người chơi
                 </h3>
-                <div className="space-y-2 max-h-80 overflow-y-auto pr-1">
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 max-h-96 overflow-y-auto pr-1">
                   {room.players.map(p => {
                     const pRoleDef = ALL_ROLES.find(r => r.key === p.role);
                     const isWolf = pRoleDef?.faction === 'WEREWOLF';
@@ -342,7 +360,7 @@ export const GameView: React.FC<GameViewProps> = ({
                         }`}
                       >
                         <div className="flex items-center gap-3 min-w-0">
-                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs ${
+                          <div className={`w-8 h-8 rounded-lg flex items-center justify-center text-xs shrink-0 ${
                             p.isAlive
                               ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/15'
                               : 'bg-rose-500/10 text-rose-400 border border-rose-500/15'
@@ -350,7 +368,7 @@ export const GameView: React.FC<GameViewProps> = ({
                             {p.isAlive ? '💚' : '💀'}
                           </div>
                           <div className="min-w-0">
-                            <div className="text-xs font-bold text-white truncate flex items-center gap-2">
+                            <div className="text-xs font-bold text-white truncate flex items-center gap-1.5">
                               <span>{p.name}</span>
                               <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
                                 isWolf
@@ -365,7 +383,7 @@ export const GameView: React.FC<GameViewProps> = ({
                         </div>
                         <button
                           onClick={() => handleHostToggleAlive(p.id, p.isAlive)}
-                          className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all ${
+                          className={`px-3 py-1.5 rounded-lg text-[11px] font-bold border transition-all shrink-0 ${
                             p.isAlive
                               ? 'bg-rose-500/10 border-rose-500/15 text-rose-300 hover:bg-rose-500/20'
                               : 'bg-emerald-500/10 border-emerald-500/15 text-emerald-300 hover:bg-emerald-500/20'
@@ -383,7 +401,7 @@ export const GameView: React.FC<GameViewProps> = ({
               <div>
                 <h3 className="text-[10px] font-bold uppercase text-[#5a5572] mb-3 tracking-[0.15em] flex items-center gap-1.5">
                   <Clock className="w-3.5 h-3.5 text-purple-400/70" />
-                  Nhật ký Admin
+                  Nhật ký Admin Quản trò
                 </h3>
                 <div className="bg-white/[0.02] border border-white/[0.05] rounded-xl p-3 h-36 overflow-y-auto font-mono text-[11px] text-purple-200 space-y-1.5">
                   {room.nightLogs.length === 0 ? (
@@ -399,12 +417,20 @@ export const GameView: React.FC<GameViewProps> = ({
               </div>
             </div>
           ) : (
-            /* ─── PLAYER VIEW ─── */
+            /* ─── PLAYER VIEW (NON-HOST) ─── */
             <div className="glass-panel rounded-2xl p-5 flex flex-col gap-4 animate-slide-up" style={{ animationDelay: '0.1s' }}>
-              <h2 className="text-sm font-bold text-white flex items-center gap-2">
-                <Users className="w-4 h-4 text-purple-400/70" />
-                Thông tin trận đấu
-              </h2>
+              <div className="flex items-center justify-between border-b border-white/[0.06] pb-3">
+                <h2 className="text-sm font-bold text-white flex items-center gap-2">
+                  <Users className="w-4 h-4 text-purple-400/70" />
+                  Danh sách người chơi
+                </h2>
+                {myRoleDef && (
+                  <div className="text-xs font-bold text-purple-300 bg-purple-500/15 border border-purple-500/20 px-3 py-1 rounded-full flex items-center gap-1.5">
+                    <span>Bạn là:</span>
+                    <span className="text-white font-extrabold">{myRoleDef.name}</span>
+                  </div>
+                )}
+              </div>
 
               {/* Day Voting */}
               {room.gameState === 'DAY' && currentPlayer?.isAlive && (
@@ -414,7 +440,7 @@ export const GameView: React.FC<GameViewProps> = ({
                     Bỏ phiếu nghi ngờ Ma Sói
                   </h3>
                   <p className="text-xs text-[#8a85a0] mb-3">
-                    Chọn 1 người nghi là Ma Sói để treo cổ hoặc bỏ qua:
+                    Chọn 1 người nghi là Ma Sói để treo cổ hoặc chọn bỏ qua:
                   </p>
 
                   <div className="flex flex-wrap gap-2">
@@ -447,18 +473,18 @@ export const GameView: React.FC<GameViewProps> = ({
                 </div>
               )}
 
-              {/* Players List */}
-              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2.5">
+              {/* Players Grid for non-hosts (ONLY names & alive status are visible, secret roles are hidden!) */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                 {room.players.map(p => (
                   <div
                     key={p.id}
                     className={`p-3.5 rounded-xl border flex items-center gap-3 transition-all ${
                       p.id === currentPlayer?.id
-                        ? 'bg-purple-500/[0.08] border-purple-500/20'
+                        ? 'bg-purple-500/[0.08] border-purple-500/20 shadow-lg shadow-purple-900/10'
                         : 'bg-white/[0.02] border-white/[0.05] hover:bg-white/[0.04]'
                     }`}
                   >
-                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm ${
+                    <div className={`w-9 h-9 rounded-lg flex items-center justify-center text-sm shrink-0 ${
                       p.isAlive
                         ? 'bg-emerald-500/10 text-emerald-300 border border-emerald-500/15'
                         : 'bg-rose-500/10 text-rose-400 border border-rose-500/15'
@@ -468,7 +494,7 @@ export const GameView: React.FC<GameViewProps> = ({
                     <div className="min-w-0">
                       <div className="text-sm font-bold text-white truncate flex items-center gap-1.5">
                         {p.name}
-                        {p.id === currentPlayer?.id && <span className="text-[10px] text-purple-400">(Bạn)</span>}
+                        {p.id === currentPlayer?.id && <span className="text-[10px] text-purple-400 font-bold">(Bạn)</span>}
                       </div>
                       <div className="text-[11px] text-[#5a5572]">
                         {p.isAlive ? 'Còn sống' : 'Đã chết (Hồn ma 👻)'}
@@ -509,7 +535,7 @@ export const GameView: React.FC<GameViewProps> = ({
         {activeActionRole && (
           <div className="lg:col-span-5 bg-gradient-to-b from-purple-500/[0.06] to-indigo-500/[0.03] border border-purple-500/20 rounded-2xl p-6 flex flex-col gap-4 animate-slide-up">
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-300">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/10 border border-purple-500/20 flex items-center justify-center text-purple-300 shrink-0">
                 <Sparkles className="w-5 h-5" />
               </div>
               <div>
