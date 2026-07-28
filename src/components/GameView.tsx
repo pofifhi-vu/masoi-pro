@@ -613,68 +613,104 @@ export const GameView: React.FC<GameViewProps> = ({
             ) : (
               <div className="flex flex-col gap-3">
 
-                {/* ─── Phù Thủy: 3 lựa chọn riêng biệt ─── */}
+                {/* ─── Phù Thủy: 3 luồng hoàn toàn tách biệt ─── */}
                 {activeActionRole === 'PHU_THUY' ? (
                   <div className="flex flex-col gap-3">
-                    {/* SAVE button */}
-                    <button
-                      onClick={() => { setWitchOption('SAVE'); setSelectedTargetId(''); }}
-                      className={`p-3.5 rounded-xl border text-left transition-all ${
-                        witchOption === 'SAVE'
-                          ? 'bg-emerald-500/15 border-emerald-500/40 ring-1 ring-emerald-400/30'
-                          : 'bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04]'
-                      }`}
-                    >
-                      <div className="text-xs font-bold text-emerald-300 flex items-center gap-1.5 mb-0.5">
-                        <Heart className="w-3.5 h-3.5" /> Thuốc cứu mạng 💊
-                      </div>
-                      <div className="text-[11px] text-[#8a85a0]">Cứu người bị sói cắn đêm nay (nếu có). Chỉ dùng 1 lần.</div>
-                    </button>
 
-                    {/* POISON button */}
-                    <button
-                      onClick={() => setWitchOption('POISON')}
-                      className={`p-3.5 rounded-xl border text-left transition-all ${
-                        witchOption === 'POISON'
-                          ? 'bg-rose-500/15 border-rose-500/40 ring-1 ring-rose-400/30'
-                          : 'bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04]'
-                      }`}
-                    >
-                      <div className="text-xs font-bold text-rose-300 flex items-center gap-1.5 mb-0.5">
-                        <Skull className="w-3.5 h-3.5" /> Thuốc độc ☠️
-                      </div>
-                      <div className="text-[11px] text-[#8a85a0]">Đầu độc 1 người chơi tùy chọn. Chỉ dùng 1 lần.</div>
-                    </button>
+                    {/* Bước 1: Chọn hành động */}
+                    {witchOption === 'NONE' && (
+                      <>
+                        <p className="text-[11px] text-[#8a85a0]">Chọn hành động đêm nay:</p>
 
-                    {/* Poison target dropdown */}
-                    {witchOption === 'POISON' && (
-                      <select
-                        value={selectedTargetId}
-                        onChange={e => setSelectedTargetId(e.target.value)}
-                        className="w-full p-3 bg-white/[0.03] border border-rose-500/30 rounded-xl text-xs text-white outline-none focus:border-rose-500/50 transition-all"
-                      >
-                        <option value="">-- Chọn người muốn đầu độc --</option>
-                        {room.players.filter(p => p.isAlive && !p.isHost).map(p => (
-                          <option key={p.id} value={p.id}>{p.name}</option>
-                        ))}
-                      </select>
+                        {/* SAVE */}
+                        <button
+                          onClick={() => setWitchOption('SAVE')}
+                          className="p-4 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.04] hover:bg-emerald-500/10 text-left transition-all group"
+                        >
+                          <div className="text-sm font-bold text-emerald-300 flex items-center gap-2 mb-1">
+                            <Heart className="w-4 h-4" /> Dùng thuốc cứu mạng 💊
+                          </div>
+                          <div className="text-[11px] text-[#6a6580]">Cứu người bị sói cắn đêm nay. Nhấn để xem chi tiết.</div>
+                        </button>
+
+                        {/* POISON */}
+                        <button
+                          onClick={() => setWitchOption('POISON')}
+                          className="p-4 rounded-xl border border-rose-500/25 bg-rose-500/[0.04] hover:bg-rose-500/10 text-left transition-all group"
+                        >
+                          <div className="text-sm font-bold text-rose-300 flex items-center gap-2 mb-1">
+                            <Skull className="w-4 h-4" /> Dùng thuốc độc ☠️
+                          </div>
+                          <div className="text-[11px] text-[#6a6580]">Đầu độc 1 người chơi bạn chọn. Nhấn để chọn mục tiêu.</div>
+                        </button>
+
+                        {/* SKIP */}
+                        <button
+                          onClick={() => handleActionSubmit('SKIP')}
+                          className="px-4 py-3 rounded-xl bg-white/[0.03] border border-white/[0.07] text-xs font-bold text-[#6a6580] hover:text-white hover:border-white/[0.15] transition-all flex items-center justify-center gap-1.5"
+                        >
+                          <Ban className="w-3.5 h-3.5" /> Bỏ Qua (Không dùng thuốc đêm nay)
+                        </button>
+                      </>
                     )}
 
-                    <div className="flex flex-col gap-2 mt-1">
-                      <button
-                        onClick={() => handleActionSubmit('NIGHT_ACTION')}
-                        disabled={witchOption === 'NONE' || (witchOption === 'POISON' && !selectedTargetId)}
-                        className="btn-primary py-3 text-white text-xs font-bold disabled:opacity-40"
-                      >
-                        {witchOption === 'SAVE' ? '✨ Sử dụng thuốc cứu' : witchOption === 'POISON' ? '☠️ Sử dụng thuốc độc' : 'Xác nhận'}
-                      </button>
-                      <button
-                        onClick={() => handleActionSubmit('SKIP')}
-                        className="px-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.07] text-xs font-bold text-[#6a6580] hover:text-white hover:border-white/[0.15] transition-all flex items-center justify-center gap-1.5"
-                      >
-                        <Ban className="w-3.5 h-3.5" /> Bỏ Qua (Không dùng thuốc)
-                      </button>
-                    </div>
+                    {/* Bước 2a: Xác nhận dùng thuốc CỨU */}
+                    {witchOption === 'SAVE' && (
+                      <div className="flex flex-col gap-3 p-4 rounded-xl bg-emerald-500/[0.06] border border-emerald-500/25">
+                        <div className="flex items-center gap-2">
+                          <Heart className="w-4 h-4 text-emerald-400" />
+                          <span className="text-sm font-bold text-emerald-300">Thuốc cứu mạng 💊</span>
+                        </div>
+                        <p className="text-[11px] text-[#8a85a0] leading-relaxed">
+                          Thuốc sẽ tự động cứu người bị sói cắn đêm nay (nếu có). Bạn không cần chọn ai.
+                        </p>
+                        <button
+                          onClick={() => handleActionSubmit('NIGHT_ACTION')}
+                          className="py-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-sm font-bold text-emerald-200 hover:bg-emerald-500/30 transition-all"
+                        >
+                          ✨ Xác nhận dùng thuốc cứu
+                        </button>
+                        <button
+                          onClick={() => setWitchOption('NONE')}
+                          className="text-[11px] text-[#5a5572] hover:text-white transition-colors text-center underline"
+                        >
+                          ← Quay lại chọn lại
+                        </button>
+                      </div>
+                    )}
+
+                    {/* Bước 2b: Chọn mục tiêu cho thuốc ĐỘC */}
+                    {witchOption === 'POISON' && (
+                      <div className="flex flex-col gap-3 p-4 rounded-xl bg-rose-500/[0.06] border border-rose-500/25">
+                        <div className="flex items-center gap-2">
+                          <Skull className="w-4 h-4 text-rose-400" />
+                          <span className="text-sm font-bold text-rose-300">Thuốc độc ☠️ — Chọn mục tiêu</span>
+                        </div>
+                        <select
+                          value={selectedTargetId}
+                          onChange={e => setSelectedTargetId(e.target.value)}
+                          className="w-full p-3 bg-white/[0.03] border border-rose-500/30 rounded-xl text-sm text-white outline-none focus:border-rose-500/60 transition-all"
+                        >
+                          <option value="">-- Chọn người muốn đầu độc --</option>
+                          {room.players.filter(p => p.isAlive && !p.isHost).map(p => (
+                            <option key={p.id} value={p.id}>{p.name}</option>
+                          ))}
+                        </select>
+                        <button
+                          onClick={() => handleActionSubmit('NIGHT_ACTION')}
+                          disabled={!selectedTargetId}
+                          className="py-3 rounded-xl bg-rose-500/20 border border-rose-500/40 text-sm font-bold text-rose-200 hover:bg-rose-500/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
+                        >
+                          ☠️ Xác nhận đầu độc {selectedTargetId ? room.players.find(p => p.id === selectedTargetId)?.name : '...'}
+                        </button>
+                        <button
+                          onClick={() => { setWitchOption('NONE'); setSelectedTargetId(''); }}
+                          className="text-[11px] text-[#5a5572] hover:text-white transition-colors text-center underline"
+                        >
+                          ← Quay lại chọn lại
+                        </button>
+                      </div>
+                    )}
                   </div>
 
                 ) : activeActionRole === 'THAN_TINH_YEU' ? (
