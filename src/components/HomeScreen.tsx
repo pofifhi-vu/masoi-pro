@@ -66,18 +66,14 @@ export const HomeScreen: React.FC<HomeScreenProps> = ({ onSelectCreate, onSelect
           </button>
         </div>
 
-        {/* Feature Badges */}
-        <div className="mt-10 sm:mt-14 flex items-center justify-center gap-1.5 sm:gap-2 flex-wrap">
-          {[
-            { icon: <Sparkles className="w-3.5 h-3.5" />, label: 'Admin Panel' },
-            { icon: <Mic className="w-3.5 h-3.5" />, label: 'Voice Chat' },
-            { icon: <Shield className="w-3.5 h-3.5" />, label: 'Bảo mật' },
-          ].map((f, i) => (
-            <div key={i} className="flex items-center gap-1.5 px-2.5 sm:px-3 py-1.5 rounded-full bg-white/[0.03] border border-white/[0.05] text-[10px] sm:text-[11px] text-[#7a7590] font-medium">
-              <span className="text-purple-400/70">{f.icon}</span>
-              <span>{f.label}</span>
-            </div>
-          ))}
+        {/* Quote Section */}
+        <div className="mt-10 sm:mt-12 px-5 py-3.5 rounded-2xl bg-purple-500/[0.04] border border-purple-500/10 backdrop-blur-sm max-w-xs flex flex-col items-center shadow-lg shadow-purple-950/20">
+          <p className="text-xs sm:text-sm font-semibold italic text-purple-200/90 tracking-wide">
+            "Chán bố mày đi"
+          </p>
+          <span className="text-[10px] sm:text-[11px] text-[#8a85a0] font-medium mt-1">
+            — Phạm Trung Đức Anh —
+          </span>
         </div>
       </div>
 
