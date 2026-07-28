@@ -301,7 +301,6 @@ io.on('connection', (socket) => {
       const isWolf = target1 && (target1.role.startsWith('MA_SOI') || target1.role.startsWith('SOI_'));
       socket.emit('inspection_result', {
         targetName: target1?.name,
-        targetRole: target1?.role,
         isWolf: isWolf
       });
     }
