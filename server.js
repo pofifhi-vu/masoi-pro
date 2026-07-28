@@ -329,11 +329,20 @@ io.on('connection', (socket) => {
       logs: room.nightLogs
     });
 
-    if (actingPlayer.role === 'TIEN_TRI' || actingPlayer.role === 'SOI_TIEN_TRI') {
+    if (actingPlayer.role === 'TIEN_TRI') {
       const isWolf = target1 && (target1.role.startsWith('MA_SOI') || target1.role.startsWith('SOI_'));
       socket.emit('inspection_result', {
         targetName: target1?.name,
         isWolf: isWolf
+        // Chỉ trả về isWolf — Tiên Tri chỉ biết phe, không biết role cụ thể
+      });
+    } else if (actingPlayer.role === 'SOI_TIEN_TRI') {
+      // Sói tiên tri thấy được đúng role cụ thể!
+      const pRoleDef = ALL_ROLES.find(r => r.key === target1?.role);
+      socket.emit('inspection_result', {
+        targetName: target1?.name,
+        isWolf: target1 && (target1.role.startsWith('MA_SOI') || target1.role.startsWith('SOI_')),
+        targetRole: pRoleDef ? pRoleDef.name : target1?.role
       });
     }
 
@@ -433,9 +442,22 @@ io.on('connection', (socket) => {
 
       // Check Werewolf bite target
       if (wolfTargetId) {
-        const isProtected = (wolfTargetId === guardTargetId) || witchSave;
-        if (!isProtected) {
-          casualties.add(wolfTargetId);
+        const bittenPlayer = room.players.find(p => p.id === wolfTargetId);
+
+        // KE_BI_SOI_NGUYEN: nếu bị sói cắn thì hóa thành sói thay vì chết!
+        if (bittenPlayer && bittenPlayer.role === 'KE_BI_SOI_NGUYEN') {
+          bittenPlayer.role = 'MA_SOI';
+          const nguyenMsg = `${getFormattedTimestamp()} 🔴 [SỰ KIỆN] KẺ bị sói nguyền đã biến thành Ma Sói sau khi bị cắn!`;
+          room.nightLogs.push(nguyenMsg);
+          io.to(bittenPlayer.socketId).emit('your_secret_role', { role: 'MA_SOI' });
+        } else {
+          const isProtected = (wolfTargetId === guardTargetId) || witchSave;
+          if (!isProtected) {
+            casualties.add(wolfTargetId);
+          } else if (witchSave) {
+            const saveMsg = `${getFormattedTimestamp()} ✨ Phù thủy đã sử dụng thuốc cứu mạng!`;
+            room.nightLogs.push(saveMsg);
+          }
         }
       }
 
@@ -628,9 +650,24 @@ io.on('connection', (socket) => {
     const code = (roomCode || socket.roomCode || '').trim().toLowerCase();
     if (code && rooms[code]) {
       const room = rooms[code];
+      const leavingPlayer = room.players.find(p => p.socketId === socket.id);
+      const leavingName = leavingPlayer ? leavingPlayer.name : 'Ai đó';
+
       room.players = room.players.filter(p => p.socketId !== socket.id);
       socket.leave(code);
       socket.roomCode = null;
+
+      // Thông báo cho cả phòng biết ai đã thoát
+      const leaveMsg = `${getFormattedTimestamp()} 🚪 ${leavingName} đã rời khỏi phòng.`;
+      if (room.nightLogs) room.nightLogs.push(leaveMsg);
+      if (room.spectatorLogs) room.spectatorLogs.push(leaveMsg);
+
+      // Gửi sự kiện riêng cho host để hiển thị thông báo
+      io.to(room.hostSocketId).emit('player_left_notify', {
+        playerName: leavingName,
+        remainingCount: room.players.filter(p => !p.isHost).length
+      });
+
       io.to(code).emit('room_updated', room);
     }
   });
@@ -646,12 +683,27 @@ io.on('connection', (socket) => {
 
     if (socket.roomCode && rooms[socket.roomCode]) {
       const room = rooms[socket.roomCode];
+      const dcPlayer = room.players.find(p => p.socketId === socket.id);
+      const dcName = dcPlayer ? dcPlayer.name : null;
+
       if (room.gameState === 'LOBBY') {
         room.players = room.players.filter(p => p.socketId !== socket.id);
+        if (dcName) {
+          // Thông báo ai đã thoát trong lobby
+          io.to(room.hostSocketId).emit('player_left_notify', {
+            playerName: dcName,
+            remainingCount: room.players.filter(p => !p.isHost).length
+          });
+        }
       } else {
-        const player = room.players.find(p => p.socketId === socket.id);
-        if (player) {
-          player.connected = false;
+        if (dcPlayer) {
+          dcPlayer.connected = false;
+          // Thông báo host khi người chơi mất kết nối giữa trận
+          io.to(room.hostSocketId).emit('player_left_notify', {
+            playerName: dcName,
+            remainingCount: room.players.filter(p => !p.isHost && p.connected).length,
+            disconnected: true
+          });
         }
       }
       io.to(socket.roomCode).emit('room_updated', room);

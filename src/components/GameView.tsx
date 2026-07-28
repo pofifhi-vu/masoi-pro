@@ -26,13 +26,13 @@ export const GameView: React.FC<GameViewProps> = ({
   inspectionResult,
   onClearInspection
 }) => {
-  // Default to true so every player immediately sees their role card when entering game!
   const [showSecretRoleCard, setShowSecretRoleCard] = useState<boolean>(true);
   const [selectedTargetId, setSelectedTargetId] = useState<string>('');
   const [selectedTargetId2, setSelectedTargetId2] = useState<string>('');
   const [witchOption, setWitchOption] = useState<'SAVE' | 'POISON' | 'NONE'>('NONE');
   const [actionSubmitted, setActionSubmitted] = useState<boolean>(false);
   const [myDayVote, setMyDayVote] = useState<string>('');
+  const [playerLeftToast, setPlayerLeftToast] = useState<string | null>(null);
 
   const isHost = currentPlayer?.isHost || false;
   const isDead = currentPlayer ? !currentPlayer.isAlive : false;
@@ -41,20 +41,35 @@ export const GameView: React.FC<GameViewProps> = ({
 
   const logEndRef = useRef<HTMLDivElement>(null);
 
+  // Reset khi lượt hành động thay đổi
   useEffect(() => {
     setActionSubmitted(false);
     setSelectedTargetId('');
     setSelectedTargetId2('');
-    // Clear kết quả soi bài khi chuyển sang lượt khác
+    setWitchOption('NONE');
     onClearInspection();
   }, [activeActionRole]);
 
-  // Auto-scroll nhật ký admin xuống mục mới nhất khi có log mới
+  // Auto-scroll nhật ký admin xuống mục mới nhất
   useEffect(() => {
     if (logEndRef.current) {
       logEndRef.current.scrollIntoView({ behavior: 'smooth' });
     }
   }, [room.nightLogs]);
+
+  // Lắng nghe thông báo người chơi thoát phòng
+  useEffect(() => {
+    if (!socket) return;
+    const handler = ({ playerName, disconnected }: { playerName: string; disconnected?: boolean }) => {
+      const msg = disconnected
+        ? `🟡 ${playerName} bị mất kết nối!`
+        : `🚪 ${playerName} đã rời khỏi phòng.`;
+      setPlayerLeftToast(msg);
+      setTimeout(() => setPlayerLeftToast(null), 4000);
+    };
+    socket.on('player_left_notify', handler);
+    return () => { socket.off('player_left_notify', handler); };
+  }, [socket]);
 
   const handleDayVote = (targetId: string) => {
     if (!socket || !room.code) return;
@@ -128,13 +143,11 @@ export const GameView: React.FC<GameViewProps> = ({
           </p>
         </header>
 
-        {/* Roles Revealed */}
         <section className="glass-panel rounded-2xl p-6 mb-6 animate-slide-up" style={{ animationDelay: '0.1s' }}>
           <h2 className="text-sm font-bold text-white mb-5 flex items-center gap-2 border-b border-white/[0.06] pb-3">
             <UserCheck className="w-4 h-4 text-purple-400" />
             Bảng Công Khai Vai Trò ({room.players.length} người chơi)
           </h2>
-
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
             {room.players.map(p => {
               const pRoleDef = ALL_ROLES.find(r => r.key === p.role);
@@ -171,7 +184,6 @@ export const GameView: React.FC<GameViewProps> = ({
           </div>
         </section>
 
-        {/* Match Logs */}
         <section className="glass-panel rounded-2xl p-6 animate-slide-up" style={{ animationDelay: '0.2s' }}>
           <h2 className="text-sm font-bold text-white mb-4 flex items-center gap-2 border-b border-white/[0.06] pb-3">
             <Clock className="w-4 h-4 text-indigo-400" />
@@ -225,7 +237,6 @@ export const GameView: React.FC<GameViewProps> = ({
           </div>
         </div>
 
-        {/* Secret Role Toggle Button */}
         <button
           onClick={() => setShowSecretRoleCard(!showSecretRoleCard)}
           className="flex items-center gap-1.5 sm:gap-2 px-3 sm:px-4 py-2 sm:py-2.5 rounded-xl glass-panel hover:border-purple-500/30 text-xs font-bold text-purple-200 transition-all"
@@ -236,7 +247,7 @@ export const GameView: React.FC<GameViewProps> = ({
       </header>
 
       <div className="max-w-6xl mx-auto grid grid-cols-1 lg:grid-cols-12 gap-4 sm:gap-5">
-        {/* Secret Role Card - Visible only to local player */}
+        {/* Secret Role Card */}
         {showSecretRoleCard && myRoleDef && (
           <div className="lg:col-span-12 bg-gradient-to-r from-purple-900/30 via-indigo-900/20 to-purple-900/30 border border-purple-500/30 rounded-2xl p-4 sm:p-5 animate-slide-up shadow-xl relative overflow-hidden">
             <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-3 sm:gap-4 relative z-10">
@@ -264,7 +275,6 @@ export const GameView: React.FC<GameViewProps> = ({
                   <p className="text-xs text-[#b4afe0] mt-1 leading-relaxed max-w-2xl">{myRoleDef.description}</p>
                 </div>
               </div>
-
               <button
                 onClick={() => setShowSecretRoleCard(false)}
                 className="w-full sm:w-auto px-4 py-2 rounded-xl bg-purple-500/15 border border-purple-500/25 hover:bg-purple-500/25 text-xs font-bold text-purple-200 transition-all shrink-0 text-center"
@@ -275,7 +285,7 @@ export const GameView: React.FC<GameViewProps> = ({
           </div>
         )}
 
-        {/* Main Section: Admin Panel (Host) or Player View */}
+        {/* Main Section */}
         <div className={`${
           isHost
             ? (activeActionRole ? 'lg:col-span-7' : 'lg:col-span-12')
@@ -291,7 +301,6 @@ export const GameView: React.FC<GameViewProps> = ({
                   </div>
                   <h2 className="text-sm font-bold text-white">Quản trò Admin Panel</h2>
                 </div>
-
                 <div className="flex items-center gap-2">
                   <button
                     onClick={() => handleHostChangePhase(room.gameState === 'NIGHT' ? 'DAY' : 'NIGHT')}
@@ -300,7 +309,6 @@ export const GameView: React.FC<GameViewProps> = ({
                     {room.gameState === 'NIGHT' ? <Sun className="w-3.5 h-3.5 text-amber-400" /> : <Moon className="w-3.5 h-3.5 text-indigo-400" />}
                     <span>{room.gameState === 'NIGHT' ? 'Ban Ngày' : 'Ban Đêm'}</span>
                   </button>
-
                   <button
                     onClick={handleHostEndGame}
                     className="px-3.5 py-2 rounded-xl bg-rose-500/10 border border-rose-500/15 text-xs font-bold text-rose-300 hover:bg-rose-500/20 transition-all flex items-center gap-1.5"
@@ -343,7 +351,6 @@ export const GameView: React.FC<GameViewProps> = ({
                     <button
                       onClick={handleHostResetNightCall}
                       className="px-2.5 py-1 rounded-lg bg-white/[0.03] border border-white/[0.06] text-[10px] font-bold text-[#6a6580] hover:text-white hover:border-white/[0.15] transition-all flex items-center gap-1"
-                      title="Tất cả ngủ — kết thúc lượt gọi vai"
                     >
                       <MicOff className="w-3 h-3" /> Tất Cả Ngủ
                     </button>
@@ -367,7 +374,7 @@ export const GameView: React.FC<GameViewProps> = ({
                 </div>
               </div>
 
-              {/* Host's Full Player Roles Overview */}
+              {/* Host's Player List */}
               <div>
                 <h3 className="text-[10px] font-bold uppercase text-[#5a5572] mb-3 tracking-[0.15em] flex items-center gap-1.5">
                   <UserCheck className="w-3.5 h-3.5 text-purple-400/70" />
@@ -397,6 +404,7 @@ export const GameView: React.FC<GameViewProps> = ({
                           <div className="min-w-0">
                             <div className="text-xs font-bold text-white truncate flex items-center gap-1.5">
                               <span>{p.name}</span>
+                              {!p.connected && <span className="text-[9px] text-amber-400/70">(mất kết nối)</span>}
                               <span className={`text-[10px] px-2 py-0.5 rounded-full font-bold ${
                                 isWolf
                                   ? 'bg-rose-500/10 text-rose-300 border border-rose-500/15'
@@ -470,9 +478,8 @@ export const GameView: React.FC<GameViewProps> = ({
                   <p className="text-xs text-[#8a85a0] mb-3">
                     Chọn 1 người nghi là Ma Sói để treo cổ hoặc chọn bỏ qua:
                   </p>
-
                   <div className="flex flex-wrap gap-2">
-                    {room.players.filter(p => p.isAlive).map(p => (
+                    {room.players.filter(p => p.isAlive && !p.isHost).map(p => (
                       <button
                         key={p.id}
                         onClick={() => handleDayVote(p.id)}
@@ -485,7 +492,6 @@ export const GameView: React.FC<GameViewProps> = ({
                         Vote {p.name}
                       </button>
                     ))}
-
                     <button
                       onClick={() => handleDayVote('SKIP')}
                       className={`px-3 py-2 rounded-xl text-xs font-bold border transition-all flex items-center gap-1 ${
@@ -501,7 +507,7 @@ export const GameView: React.FC<GameViewProps> = ({
                 </div>
               )}
 
-              {/* Players Grid for non-hosts (ONLY names & alive status are visible, secret roles are hidden!) */}
+              {/* Players Grid */}
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-2.5">
                 {room.players.map(p => (
                   <div
@@ -523,9 +529,11 @@ export const GameView: React.FC<GameViewProps> = ({
                       <div className="text-sm font-bold text-white truncate flex items-center gap-1.5">
                         {p.name}
                         {p.id === currentPlayer?.id && <span className="text-[10px] text-purple-400 font-bold">(Bạn)</span>}
+                        {p.isHost && <Crown className="w-3 h-3 text-amber-400" />}
                       </div>
                       <div className="text-[11px] text-[#5a5572]">
                         {p.isAlive ? 'Còn sống' : 'Đã chết (Hồn ma 👻)'}
+                        {!p.connected && !p.isAlive === false && <span className="text-amber-400/60 ml-1">(mất KN)</span>}
                       </div>
                     </div>
                   </div>
@@ -562,86 +570,213 @@ export const GameView: React.FC<GameViewProps> = ({
         {/* RIGHT: Night Action Panel */}
         {activeActionRole && (
           <div className="lg:col-span-5 bg-gradient-to-b from-purple-500/[0.08] to-indigo-500/[0.04] border border-purple-500/30 rounded-2xl p-5 sm:p-6 flex flex-col gap-4 animate-slide-up shadow-2xl">
+            {/* Header */}
             <div className="flex items-center gap-3">
-              <div className="w-10 h-10 rounded-xl bg-purple-500/15 border border-purple-500/25 flex items-center justify-center text-purple-300 shrink-0">
+              <div className="w-10 h-10 rounded-xl bg-purple-500/15 border border-purple-500/25 flex items-center justify-center shrink-0">
                 <Sparkles className="w-5 h-5 text-amber-400" />
               </div>
               <div>
                 <div className="text-[10px] font-extrabold text-amber-300 uppercase tracking-[0.15em] animate-pulse">Lượt của bạn!</div>
-                <h3 className="text-lg font-black text-white">{ALL_ROLES.find(r => r.key === activeActionRole)?.name || (activeActionRole === 'MA_SOI' ? 'Phe Ma Sói' : activeActionRole)}</h3>
+                <h3 className="text-lg font-black text-white">
+                  {ALL_ROLES.find(r => r.key === activeActionRole)?.name ||
+                    (activeActionRole === 'MA_SOI' ? 'Phe Ma Sói' : activeActionRole)}
+                </h3>
               </div>
             </div>
 
+            {/* Description */}
             <p className="text-xs text-[#b4afe0] leading-relaxed">
-              {activeActionRole === 'MA_SOI' ? 'Quản trò vừa gọi Phe Sói. Thảo luận và chọn 1 nạn nhân để cắn chết đêm nay:' :
-               activeActionRole === 'TIEN_TRI' ? 'Quản trò gọi Tiên tri. Chọn 1 người chơi để kiểm tra phe (Sói hay Dân):' :
-               activeActionRole === 'BAO_VE' ? 'Quản trò gọi Bảo vệ. Chọn 1 người chơi để bảo vệ đêm nay:' :
-               activeActionRole === 'PHU_THUY' ? 'Quản trò gọi Phù thủy. Chọn mục tiêu dùng thuốc:' :
-               activeActionRole === 'THAN_TINH_YEU' ? 'Quản trò gọi Thần tình yêu. Chọn 2 người chơi để ghép đôi:' :
-               'Quản trò vừa gọi chức năng của bạn. Chọn mục tiêu bên dưới để thực hiện hành động đêm:'}
+              {activeActionRole === 'MA_SOI' || activeActionRole?.startsWith('SOI_CON') || activeActionRole === 'SOI_BANG_TRONG'
+                ? 'Quản trò vừa gọi Phe Sói. Thảo luận và chọn 1 nạn nhân để cắn chết đêm nay:'
+                : activeActionRole === 'TIEN_TRI'
+                  ? 'Quản trò gọi Tiên tri. Chọn 1 người chơi để kiểm tra phe (Sói hay Dân làng):'
+                  : activeActionRole === 'SOI_TIEN_TRI'
+                    ? 'Quản trò gọi Sói tiên tri. Chọn 1 người để xem đúng vai trò của họ:'
+                    : activeActionRole === 'BAO_VE'
+                      ? 'Quản trò gọi Bảo vệ. Chọn 1 người để bảo vệ khỏi Sói đêm nay:'
+                      : activeActionRole === 'PHU_THUY'
+                        ? 'Quản trò gọi Phù thủy. Chọn dùng thuốc cứu, thuốc độc, hoặc bỏ qua:'
+                        : activeActionRole === 'THAN_TINH_YEU'
+                          ? 'Quản trò gọi Thần tình yêu. Chọn 2 người chơi để ghép đôi (cùng sống cùng chết):'
+                          : activeActionRole === 'PHAP_SU_CAM_LANG' || activeActionRole === 'SOI_CAM_LANG'
+                            ? 'Quản trò gọi cấm lặng. Chọn 1 người bị cấm phát biểu trong ngày mai:'
+                            : activeActionRole === 'THO_SAN'
+                              ? 'Quản trò gọi Thợ săn. Chọn 1 người sẽ kéo theo khi bạn bị chết đêm nay:'
+                              : 'Quản trò vừa gọi chức năng của bạn. Chọn mục tiêu bên dưới:'}
             </p>
 
             {actionSubmitted ? (
               <div className="p-5 bg-emerald-500/[0.08] border border-emerald-500/20 rounded-xl text-center flex flex-col items-center gap-2">
                 <CheckCircle2 className="w-8 h-8 text-emerald-400" />
-                <span className="text-xs font-bold text-emerald-200">Đã gửi hành động! Bạn có thể chờ quản trò chuyển lượt.</span>
+                <span className="text-xs font-bold text-emerald-200">Đã gửi hành động! Chờ quản trò chuyển lượt.</span>
               </div>
             ) : (
-              <div className="flex flex-col gap-4">
-                <div>
-                  <label className="text-xs font-bold text-[#8a85a0] mb-1.5 block">Chọn mục tiêu 1:</label>
-                  <select
-                    value={selectedTargetId}
-                    onChange={e => setSelectedTargetId(e.target.value)}
-                    className="w-full p-3 bg-white/[0.03] border border-white/[0.08] rounded-xl text-xs text-white outline-none focus:border-purple-500/50 transition-all"
-                  >
-                    <option value="">-- Chọn 1 người chơi --</option>
-                    {room.players.filter(p => p.isAlive).map(p => (
-                      <option key={p.id} value={p.id}>
-                        {p.name} {p.id === currentPlayer?.id ? '(Bản thân)' : ''}
-                      </option>
-                    ))}
-                  </select>
-                </div>
+              <div className="flex flex-col gap-3">
 
-                {activeActionRole === 'THAN_TINH_YEU' && (
-                  <div>
-                    <label className="text-xs font-bold text-[#8a85a0] mb-1.5 block">Chọn mục tiêu thứ 2 (Ghép đôi):</label>
-                    <select
-                      value={selectedTargetId2}
-                      onChange={e => setSelectedTargetId2(e.target.value)}
-                      className="w-full p-3 bg-white/[0.03] border border-white/[0.08] rounded-xl text-xs text-white outline-none focus:border-purple-500/50 transition-all"
+                {/* ─── Phù Thủy: 3 lựa chọn riêng biệt ─── */}
+                {activeActionRole === 'PHU_THUY' ? (
+                  <div className="flex flex-col gap-3">
+                    {/* SAVE button */}
+                    <button
+                      onClick={() => { setWitchOption('SAVE'); setSelectedTargetId(''); }}
+                      className={`p-3.5 rounded-xl border text-left transition-all ${
+                        witchOption === 'SAVE'
+                          ? 'bg-emerald-500/15 border-emerald-500/40 ring-1 ring-emerald-400/30'
+                          : 'bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04]'
+                      }`}
                     >
-                      <option value="">-- Chọn người chơi thứ 2 --</option>
-                      {room.players.filter(p => p.isAlive && p.id !== selectedTargetId).map(p => (
-                        <option key={p.id} value={p.id}>
-                          {p.name}
-                        </option>
-                      ))}
-                    </select>
+                      <div className="text-xs font-bold text-emerald-300 flex items-center gap-1.5 mb-0.5">
+                        <Heart className="w-3.5 h-3.5" /> Thuốc cứu mạng 💊
+                      </div>
+                      <div className="text-[11px] text-[#8a85a0]">Cứu người bị sói cắn đêm nay (nếu có). Chỉ dùng 1 lần.</div>
+                    </button>
+
+                    {/* POISON button */}
+                    <button
+                      onClick={() => setWitchOption('POISON')}
+                      className={`p-3.5 rounded-xl border text-left transition-all ${
+                        witchOption === 'POISON'
+                          ? 'bg-rose-500/15 border-rose-500/40 ring-1 ring-rose-400/30'
+                          : 'bg-white/[0.02] border-white/[0.06] hover:bg-white/[0.04]'
+                      }`}
+                    >
+                      <div className="text-xs font-bold text-rose-300 flex items-center gap-1.5 mb-0.5">
+                        <Skull className="w-3.5 h-3.5" /> Thuốc độc ☠️
+                      </div>
+                      <div className="text-[11px] text-[#8a85a0]">Đầu độc 1 người chơi tùy chọn. Chỉ dùng 1 lần.</div>
+                    </button>
+
+                    {/* Poison target dropdown */}
+                    {witchOption === 'POISON' && (
+                      <select
+                        value={selectedTargetId}
+                        onChange={e => setSelectedTargetId(e.target.value)}
+                        className="w-full p-3 bg-white/[0.03] border border-rose-500/30 rounded-xl text-xs text-white outline-none focus:border-rose-500/50 transition-all"
+                      >
+                        <option value="">-- Chọn người muốn đầu độc --</option>
+                        {room.players.filter(p => p.isAlive && !p.isHost).map(p => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                    )}
+
+                    <div className="flex flex-col gap-2 mt-1">
+                      <button
+                        onClick={() => handleActionSubmit('NIGHT_ACTION')}
+                        disabled={witchOption === 'NONE' || (witchOption === 'POISON' && !selectedTargetId)}
+                        className="btn-primary py-3 text-white text-xs font-bold disabled:opacity-40"
+                      >
+                        {witchOption === 'SAVE' ? '✨ Sử dụng thuốc cứu' : witchOption === 'POISON' ? '☠️ Sử dụng thuốc độc' : 'Xác nhận'}
+                      </button>
+                      <button
+                        onClick={() => handleActionSubmit('SKIP')}
+                        className="px-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.07] text-xs font-bold text-[#6a6580] hover:text-white hover:border-white/[0.15] transition-all flex items-center justify-center gap-1.5"
+                      >
+                        <Ban className="w-3.5 h-3.5" /> Bỏ Qua (Không dùng thuốc)
+                      </button>
+                    </div>
+                  </div>
+
+                ) : activeActionRole === 'THAN_TINH_YEU' ? (
+                  /* ─── Thần tình yêu: chọn 2 người ─── */
+                  <div className="flex flex-col gap-3">
+                    <div>
+                      <label className="text-xs font-bold text-[#8a85a0] mb-1.5 block">Chọn người 1:</label>
+                      <select
+                        value={selectedTargetId}
+                        onChange={e => setSelectedTargetId(e.target.value)}
+                        className="w-full p-3 bg-white/[0.03] border border-white/[0.08] rounded-xl text-xs text-white outline-none focus:border-purple-500/50 transition-all"
+                      >
+                        <option value="">-- Chọn người chơi --</option>
+                        {room.players.filter(p => p.isAlive && !p.isHost).map(p => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div>
+                      <label className="text-xs font-bold text-[#8a85a0] mb-1.5 block">Chọn người 2 (ghép đôi):</label>
+                      <select
+                        value={selectedTargetId2}
+                        onChange={e => setSelectedTargetId2(e.target.value)}
+                        className="w-full p-3 bg-white/[0.03] border border-white/[0.08] rounded-xl text-xs text-white outline-none focus:border-purple-500/50 transition-all"
+                      >
+                        <option value="">-- Chọn người chơi thứ 2 --</option>
+                        {room.players.filter(p => p.isAlive && !p.isHost && p.id !== selectedTargetId).map(p => (
+                          <option key={p.id} value={p.id}>{p.name}</option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={() => handleActionSubmit('NIGHT_ACTION')}
+                        disabled={!selectedTargetId || !selectedTargetId2}
+                        className="btn-primary py-3 text-white text-xs font-bold"
+                      >
+                        Ghép đôi 2 người này 💕
+                      </button>
+                      <button
+                        onClick={() => handleActionSubmit('SKIP')}
+                        className="px-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.07] text-xs font-bold text-[#6a6580] hover:text-white hover:border-white/[0.15] transition-all flex items-center justify-center gap-1.5"
+                      >
+                        <Ban className="w-3.5 h-3.5" /> Bỏ Qua
+                      </button>
+                    </div>
+                  </div>
+
+                ) : (
+                  /* ─── Tất cả role khác: chọn 1 mục tiêu ─── */
+                  <div className="flex flex-col gap-3">
+                    <div>
+                      <label className="text-xs font-bold text-[#8a85a0] mb-1.5 block">Chọn mục tiêu:</label>
+                      <select
+                        value={selectedTargetId}
+                        onChange={e => setSelectedTargetId(e.target.value)}
+                        className="w-full p-3 bg-white/[0.03] border border-white/[0.08] rounded-xl text-xs text-white outline-none focus:border-purple-500/50 transition-all"
+                      >
+                        <option value="">-- Chọn 1 người chơi --</option>
+                        {room.players.filter(p => p.isAlive && !p.isHost).map(p => (
+                          <option key={p.id} value={p.id}>
+                            {p.name} {p.id === currentPlayer?.id ? '(Bản thân)' : ''}
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+                    <div className="flex flex-col gap-2">
+                      <button
+                        onClick={() => handleActionSubmit('NIGHT_ACTION')}
+                        disabled={!selectedTargetId}
+                        className="btn-primary py-3 text-white text-xs font-bold"
+                      >
+                        Xác nhận hành động
+                      </button>
+                      <button
+                        onClick={() => handleActionSubmit('SKIP')}
+                        className="px-4 py-2.5 rounded-xl bg-white/[0.03] border border-white/[0.07] text-xs font-bold text-[#6a6580] hover:text-white hover:border-white/[0.15] transition-all flex items-center justify-center gap-1.5"
+                      >
+                        <Ban className="w-3.5 h-3.5" /> Bỏ Qua (Không hành động)
+                      </button>
+                    </div>
                   </div>
                 )}
-
-                <button
-                  onClick={() => handleActionSubmit('NIGHT_ACTION')}
-                  disabled={!selectedTargetId}
-                  className="btn-primary py-3 text-white text-xs font-bold mt-2"
-                >
-                  Xác nhận hành động
-                </button>
               </div>
             )}
 
             {/* Inspection Result */}
             {inspectionResult && (
               <div className="mt-2 p-4 bg-indigo-500/[0.08] border border-indigo-500/20 rounded-xl">
-                <h4 className="text-xs font-bold text-indigo-300 mb-1">Kết quả soi bài:</h4>
+                <h4 className="text-xs font-bold text-indigo-300 mb-2">Kết quả soi bài:</h4>
                 <p className="text-xs text-white">
                   Người chơi <span className="font-bold text-purple-300">{inspectionResult.targetName}</span> là:{' '}
                   <span className={`font-bold ${inspectionResult.isWolf ? 'text-rose-400' : 'text-emerald-400'}`}>
                     {inspectionResult.isWolf ? '🐺 PHE MA SÓI' : '💚 PHE DÂN LÀNG'}
                   </span>
                 </p>
+                {/* SOI_TIEN_TRI thấy được role cụ thể */}
+                {inspectionResult.targetRole && (
+                  <p className="text-xs text-amber-300 mt-1">
+                    → Vai trò cụ thể: <span className="font-bold">{inspectionResult.targetRole}</span>
+                  </p>
+                )}
                 <button
                   onClick={onClearInspection}
                   className="mt-2 text-[10px] text-indigo-300 underline hover:text-white transition-colors"
@@ -653,6 +788,13 @@ export const GameView: React.FC<GameViewProps> = ({
           </div>
         )}
       </div>
+
+      {/* Toast: Thông báo người thoát phòng */}
+      {playerLeftToast && (
+        <div className="fixed bottom-24 left-1/2 -translate-x-1/2 z-50 px-5 py-3 rounded-xl glass-panel border-amber-500/20 text-amber-200 text-xs font-bold shadow-2xl animate-slide-up flex items-center gap-2">
+          <span>{playerLeftToast}</span>
+        </div>
+      )}
     </div>
   );
 };
