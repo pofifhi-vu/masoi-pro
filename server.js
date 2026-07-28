@@ -272,6 +272,22 @@ io.on('connection', (socket) => {
     io.to(roomCode).emit('room_updated', room);
   });
 
+  // Host resets night call — tất cả ngủ, tắt panel hành động của mọi người
+  socket.on('host_reset_night_call', ({ roomCode }) => {
+    const room = rooms[roomCode];
+    if (!room || room.hostSocketId !== socket.id) return;
+
+    room.currentCalledRole = null;
+
+    const msg = `${getFormattedTimestamp()} 😴 Tất cả mọi người đã ngủ...`;
+    room.nightLogs.push(msg);
+    room.spectatorLogs.push(msg);
+
+    // Broadcast để tất cả client tắt panel hành động
+    io.to(roomCode).emit('phase_changed', { gameState: room.gameState, room });
+    io.to(roomCode).emit('room_updated', room);
+  });
+
   // Player submits night action (Recorded silently, NOT executed until morning!)
   socket.on('player_submit_action', ({ roomCode, actionType, targetPlayerId, targetPlayerId2, note }) => {
     const room = rooms[roomCode];

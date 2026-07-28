@@ -112,11 +112,10 @@ const AppContent: React.FC = () => {
     });
 
     newSocket.on('role_called_broadcast', ({ roleKey }: { roleKey: string }) => {
-      const myRole = secretRoleRef.current;
-      const isMyRoleGroup = myRole === roleKey || (roleKey === 'MA_SOI' && (myRole?.startsWith('MA_SOI') || myRole?.startsWith('SOI_')));
-      if (!isMyRoleGroup) {
-        setActiveActionRole(null);
-      }
+      // role_called_broadcast chỉ dùng để cập nhật UI (highlight nút gọi vai trong admin panel)
+      // KHÔNG tắt panel của người chơi — your_turn_to_act mới là source of truth để BẬT panel
+      // Panel chỉ được tắt khi phase_changed (chuyển pha ban ngày / ban đêm mới)
+      console.log('[Socket] role_called_broadcast:', roleKey);
     });
 
     newSocket.on('inspection_result', (result: any) => {
@@ -125,10 +124,9 @@ const AppContent: React.FC = () => {
 
     newSocket.on('phase_changed', ({ gameState, room: updatedRoom }: { gameState: any; room: RoomState }) => {
       setRoom(updatedRoom);
-      if (gameState === 'DAY') {
-        setActiveActionRole(null);
-        setInspectionResult(null);
-      }
+      // Reset panel hành động khi chuyển pha — cả DAY lẫn NIGHT mới đều phải tắt panel
+      setActiveActionRole(null);
+      setInspectionResult(null);
     });
 
     // Check if room code exists in URL query parameter ?room=XYZ
