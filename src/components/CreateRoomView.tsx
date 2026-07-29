@@ -197,6 +197,27 @@ export const CreateRoomView: React.FC<CreateRoomViewProps> = ({ onCreateRoom, on
             </button>
           </div>
 
+          {/* Auto Host Toggle */}
+          <div className="w-full sm:w-auto flex items-center justify-between gap-3 bg-white/[0.03] border border-white/[0.06] rounded-xl px-4 py-2.5">
+            <div className="flex items-center gap-2">
+              <Zap className={`w-3.5 h-3.5 ${isAutoHost ? 'text-amber-400' : 'text-[#6a6580]'}`} />
+              <div className="flex flex-col">
+                <span className="text-xs font-bold text-white">Chế độ Quản Trò Tự Động</span>
+                <span className="text-[9px] text-[#6a6580]">Máy chủ tự động gọi vai trò & đếm giờ</span>
+              </div>
+            </div>
+            <button
+              onClick={() => setIsAutoHost(!isAutoHost)}
+              className={`w-10 h-5 rounded-full relative transition-colors ${
+                isAutoHost ? 'bg-amber-500' : 'bg-white/10'
+              }`}
+            >
+              <div className={`absolute top-1 w-3 h-3 rounded-full bg-white transition-all ${
+                isAutoHost ? 'left-6' : 'left-1'
+              }`} />
+            </button>
+          </div>
+
           {showCustomCodeMenu && (
             <div className="w-full pt-3 border-t border-white/[0.04] flex flex-col sm:flex-row items-center gap-3">
               <p className="text-[11px] text-[#6a6580] leading-relaxed">
