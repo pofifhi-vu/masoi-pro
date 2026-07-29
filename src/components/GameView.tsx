@@ -661,8 +661,24 @@ export const GameView: React.FC<GameViewProps> = ({
               <div className="flex flex-col gap-3">
 
                 {/* ─── Phù Thủy: 3 luồng hoàn toàn tách biệt ─── */}
-                {activeActionRole === 'PHU_THUY' ? (
+                {activeActionRole === 'PHU_THUY' ? (() => {
+                  const wolfAction = room.nightActions['MA_SOI'] || room.nightActions['SOI_BANG_TRONG'] || room.nightActions['SOI_DU_THOI'];
+                  const victimPlayer = wolfAction ? room.players.find(p => p.id === wolfAction.targetPlayerId) : null;
+                  
+                  return (
                   <div className="flex flex-col gap-3">
+                    {/* Thông tin nạn nhân bị Sói cắn */}
+                    <div className={`p-3 rounded-xl border text-xs font-bold ${
+                      victimPlayer
+                        ? 'bg-rose-500/10 border-rose-500/25 text-rose-300'
+                        : 'bg-white/[0.03] border-white/[0.08] text-[#8a85a0]'
+                    }`}>
+                      {victimPlayer ? (
+                        <span>🐺 Đêm nay Sói đã cắn người chơi: <strong className="text-white underline">{victimPlayer.name}</strong></span>
+                      ) : (
+                        <span>🌙 Đêm nay Sói không cắn ai (hoặc Sói bỏ qua).</span>
+                      )}
+                    </div>
 
                     {/* Bước 1: Chọn hành động */}
                     {witchOption === 'NONE' && (
@@ -672,12 +688,15 @@ export const GameView: React.FC<GameViewProps> = ({
                         {/* SAVE */}
                         <button
                           onClick={() => setWitchOption('SAVE')}
-                          className="p-4 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.04] hover:bg-emerald-500/10 text-left transition-all group"
+                          disabled={!victimPlayer}
+                          className="p-4 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.04] hover:bg-emerald-500/10 text-left transition-all group disabled:opacity-40 disabled:cursor-not-allowed"
                         >
                           <div className="text-sm font-bold text-emerald-300 flex items-center gap-2 mb-1">
                             <Heart className="w-4 h-4" /> Dùng thuốc cứu mạng 💊
                           </div>
-                          <div className="text-[11px] text-[#6a6580]">Cứu người bị sói cắn đêm nay. Nhấn để xem chi tiết.</div>
+                          <div className="text-[11px] text-[#6a6580]">
+                            {victimPlayer ? `Cứu ${victimPlayer.name} khỏi cái chết đêm nay.` : 'Không có nạn nhân bị cắn để cứu.'}
+                          </div>
                         </button>
 
                         {/* POISON */}
@@ -709,13 +728,13 @@ export const GameView: React.FC<GameViewProps> = ({
                           <span className="text-sm font-bold text-emerald-300">Thuốc cứu mạng 💊</span>
                         </div>
                         <p className="text-[11px] text-[#8a85a0] leading-relaxed">
-                          Thuốc sẽ tự động cứu người bị sói cắn đêm nay (nếu có). Bạn không cần chọn ai.
+                          Xác nhận dùng thuốc cứu để cứu sống <strong className="text-emerald-300">{victimPlayer?.name || 'mục tiêu'}</strong>.
                         </p>
                         <button
                           onClick={() => handleActionSubmit('NIGHT_ACTION')}
                           className="py-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-sm font-bold text-emerald-200 hover:bg-emerald-500/30 transition-all"
                         >
-                          ✨ Xác nhận dùng thuốc cứu
+                          ✨ Xác nhận dùng thuốc cứu {victimPlayer?.name}
                         </button>
                         <button
                           onClick={() => setWitchOption('NONE')}
@@ -759,8 +778,8 @@ export const GameView: React.FC<GameViewProps> = ({
                       </div>
                     )}
                   </div>
-
-                ) : activeActionRole === 'THAN_TINH_YEU' ? (
+                  );
+                })() : activeActionRole === 'THAN_TINH_YEU' ? (
                   /* ─── Thần tình yêu: chọn 2 người ─── */
                   <div className="flex flex-col gap-3">
                     <div>

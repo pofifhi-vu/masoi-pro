@@ -431,9 +431,10 @@ io.on('connection', (socket) => {
     }
   });
 
-  function executeVoteResult(roomCode) {
-    const room = rooms[roomCode];
+  function executeVoteResult(roomOrCode) {
+    const room = typeof roomOrCode === 'string' ? rooms[roomOrCode] : roomOrCode;
     if (!room || !room.dayVotes) return;
+    const roomCode = room.code;
 
     const counts = {};
     Object.values(room.dayVotes).forEach(target => {
@@ -532,9 +533,10 @@ io.on('connection', (socket) => {
     executeVoteResult(roomCode);
   });
 
-  function changePhaseToDay(roomCode) {
-    const room = rooms[roomCode];
+  function changePhaseToDay(roomOrCode) {
+    const room = typeof roomOrCode === 'string' ? rooms[roomOrCode] : roomOrCode;
     if (!room) return;
+    const roomCode = room.code;
 
     const wolfAction = room.nightActions['MA_SOI'] || room.nightActions['SOI_BANG_TRONG'] || room.nightActions['SOI_DU_THOI'];
     const guardAction = room.nightActions['BAO_VE'];
