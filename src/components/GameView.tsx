@@ -521,7 +521,7 @@ export const GameView: React.FC<GameViewProps> = ({
                     Chọn 1 người nghi là Ma Sói để treo cổ hoặc chọn bỏ qua:
                   </p>
                   <div className="flex flex-wrap gap-2">
-                    {room.players.filter(p => p.isAlive && !p.isHost).map(p => (
+                    {room.players.filter(p => p.isAlive && (room.isAutoHost || !p.isHost)).map(p => (
                       <button
                         key={p.id}
                         onClick={() => handleDayVote(p.id)}
@@ -739,7 +739,7 @@ export const GameView: React.FC<GameViewProps> = ({
                           className="w-full p-3 bg-white/[0.03] border border-rose-500/30 rounded-xl text-sm text-white outline-none focus:border-rose-500/60 transition-all"
                         >
                           <option value="">-- Chọn người muốn đầu độc --</option>
-                          {room.players.filter(p => p.isAlive && !p.isHost).map(p => (
+                          {room.players.filter(p => p.isAlive && (room.isAutoHost || !p.isHost)).map(p => (
                             <option key={p.id} value={p.id}>{p.name}</option>
                           ))}
                         </select>
@@ -771,7 +771,7 @@ export const GameView: React.FC<GameViewProps> = ({
                         className="w-full p-3 bg-white/[0.03] border border-white/[0.08] rounded-xl text-xs text-white outline-none focus:border-purple-500/50 transition-all"
                       >
                         <option value="">-- Chọn người chơi --</option>
-                        {room.players.filter(p => p.isAlive && !p.isHost).map(p => (
+                        {room.players.filter(p => p.isAlive && (room.isAutoHost || !p.isHost)).map(p => (
                           <option key={p.id} value={p.id}>{p.name}</option>
                         ))}
                       </select>
@@ -784,7 +784,7 @@ export const GameView: React.FC<GameViewProps> = ({
                         className="w-full p-3 bg-white/[0.03] border border-white/[0.08] rounded-xl text-xs text-white outline-none focus:border-purple-500/50 transition-all"
                       >
                         <option value="">-- Chọn người chơi thứ 2 --</option>
-                        {room.players.filter(p => p.isAlive && !p.isHost && p.id !== selectedTargetId).map(p => (
+                        {room.players.filter(p => p.isAlive && (room.isAutoHost || !p.isHost) && p.id !== selectedTargetId).map(p => (
                           <option key={p.id} value={p.id}>{p.name}</option>
                         ))}
                       </select>
@@ -817,7 +817,7 @@ export const GameView: React.FC<GameViewProps> = ({
                         className="w-full p-3 bg-white/[0.03] border border-white/[0.08] rounded-xl text-xs text-white outline-none focus:border-purple-500/50 transition-all"
                       >
                         <option value="">-- Chọn 1 người chơi --</option>
-                        {room.players.filter(p => p.isAlive && !p.isHost).map(p => (
+                        {room.players.filter(p => p.isAlive && (room.isAutoHost || !p.isHost)).map(p => (
                           <option key={p.id} value={p.id}>
                             {p.name} {p.id === currentPlayer?.id ? '(Bản thân)' : ''}
                           </option>

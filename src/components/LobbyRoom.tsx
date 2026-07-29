@@ -25,7 +25,7 @@ export const LobbyRoom: React.FC<LobbyRoomProps> = ({
 
   const totalRolesRequired = Object.values(roleConfig).reduce((a, b) => a + b, 0);
   const currentPlayersCount = playersList.length;
-  const playingMembersCount = playersList.filter(p => !p.isHost).length;
+  const playingMembersCount = room?.isAutoHost ? playersList.length : playersList.filter(p => !p.isHost).length;
   const isFull = playingMembersCount >= totalRolesRequired && totalRolesRequired > 0;
   const isHost = currentPlayer?.isHost || false;
   const missingPlayersCount = Math.max(0, totalRolesRequired - playingMembersCount);
@@ -113,7 +113,7 @@ export const LobbyRoom: React.FC<LobbyRoomProps> = ({
               Phòng chờ
               {isHost && (
                 <span className="text-[9px] sm:text-[10px] bg-amber-500/10 text-amber-300 border border-amber-500/20 px-2 py-0.5 sm:px-2.5 sm:py-1 rounded-full font-bold flex items-center gap-1">
-                  <Crown className="w-3 h-3" /> Quản trò
+                  <Crown className="w-3 h-3" /> {room?.isAutoHost ? 'Chủ phòng (Chơi cùng)' : 'Quản trò'}
                 </span>
               )}
             </h2>

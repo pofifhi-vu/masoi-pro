@@ -83,8 +83,8 @@ export const VoiceChatBar: React.FC<VoiceChatBarProps> = ({ socket, roomCode, cu
       let shouldMute = false;
       if (p.audioState && p.audioState.mic === false) shouldMute = true;
       if (p.isAlive && !audioState.livingSpeaker) shouldMute = true;
-      if (!p.isAlive && !p.isHost && !audioState.deadSpeaker) shouldMute = true;
-      if (!myIsHost && !myIsDead && !p.isAlive && !p.isHost) shouldMute = true;
+      if (!p.isAlive && (!room?.isAutoHost ? !p.isHost : true) && !audioState.deadSpeaker) shouldMute = true;
+      if ((!myIsHost || room?.isAutoHost) && !myIsDead && !p.isAlive && (!room?.isAutoHost ? !p.isHost : true)) shouldMute = true;
       if (p.isHost) {
         if (activeHostTarget === 'LIVING_ONLY' && myIsDead) shouldMute = true;
         if (activeHostTarget === 'DEAD_ONLY' && !myIsDead) shouldMute = true;
