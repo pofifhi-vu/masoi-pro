@@ -662,23 +662,9 @@ export const GameView: React.FC<GameViewProps> = ({
 
                 {/* ─── Phù Thủy: 3 luồng hoàn toàn tách biệt ─── */}
                 {activeActionRole === 'PHU_THUY' ? (() => {
-                  const wolfAction = room.nightActions['MA_SOI'] || room.nightActions['SOI_BANG_TRONG'] || room.nightActions['SOI_DU_THOI'];
-                  const victimPlayer = wolfAction ? room.players.find(p => p.id === wolfAction.targetPlayerId) : null;
-                  
                   return (
                   <div className="flex flex-col gap-3">
-                    {/* Thông tin nạn nhân bị Sói cắn */}
-                    <div className={`p-3 rounded-xl border text-xs font-bold ${
-                      victimPlayer
-                        ? 'bg-rose-500/10 border-rose-500/25 text-rose-300'
-                        : 'bg-white/[0.03] border-white/[0.08] text-[#8a85a0]'
-                    }`}>
-                      {victimPlayer ? (
-                        <span>🐺 Đêm nay Sói đã cắn người chơi: <strong className="text-white underline">{victimPlayer.name}</strong></span>
-                      ) : (
-                        <span>🌙 Đêm nay Sói không cắn ai (hoặc Sói bỏ qua).</span>
-                      )}
-                    </div>
+
 
                     {/* Bước 1: Chọn hành động */}
                     {witchOption === 'NONE' && (
@@ -689,7 +675,6 @@ export const GameView: React.FC<GameViewProps> = ({
                         <button
                           onClick={() => {
                             setWitchOption('SAVE');
-                            if (victimPlayer) setSelectedTargetId(victimPlayer.id);
                           }}
                           className="p-4 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.04] hover:bg-emerald-500/10 text-left transition-all group"
                         >
@@ -733,7 +718,7 @@ export const GameView: React.FC<GameViewProps> = ({
                           <span className="text-sm font-bold text-emerald-300">Thuốc cứu mạng 💊 — Chọn mục tiêu</span>
                         </div>
                         <p className="text-[11px] text-[#8a85a0] leading-relaxed">
-                          Chọn 1 người chơi bạn muốn trao thuốc cứu (mặc định đã chọn nạn nhân bị Sói cắn nếu có):
+                          Chọn 1 người chơi bạn muốn trao thuốc cứu:
                         </p>
                         <select
                           value={selectedTargetId}
@@ -743,7 +728,7 @@ export const GameView: React.FC<GameViewProps> = ({
                           <option value="">-- Chọn người chơi để dùng thuốc cứu --</option>
                           {room.players.filter(p => p.isAlive && (room.isAutoHost || !p.isHost)).map(p => (
                             <option key={p.id} value={p.id}>
-                              {p.name} {victimPlayer && p.id === victimPlayer.id ? '(Nạn nhân bị cắn 🐺)' : ''}
+                              {p.name}
                             </option>
                           ))}
                         </select>

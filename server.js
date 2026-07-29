@@ -671,16 +671,7 @@ io.on('connection', (socket) => {
     io.to(roomCode).emit('room_updated', room);
     
     if (room.isAutoHost) {
-      // Bắt đầu 60s thảo luận ban ngày trước khi vote
-      room.phaseTimer = { endTime: Date.now() + 60000, duration: 60000 };
-      const discussMsg = `${getFormattedTimestamp()} 💬 Bắt đầu thảo luận ban ngày (60s).`;
-      room.nightLogs.push(discussMsg);
-      room.spectatorLogs.push(discussMsg);
-      io.to(roomCode).emit('room_updated', room);
-      
-      setTimeout(() => {
-        startAutoDayVoting(room, io, (r, i) => executeVoteResult(r.code));
-      }, 60000);
+      startAutoDayVoting(room, io, (r, i) => executeVoteResult(r.code));
     }
   }
 
