@@ -532,11 +532,6 @@ io.on('connection', (socket) => {
     executeVoteResult(roomCode);
   });
 
-  // Host changes phase (Night -> Day / Day -> Night)
-  socket.on('host_change_phase', ({ roomCode, nextPhase }) => {
-    const room = rooms[roomCode];
-    if (!room || room.hostSocketId !== socket.id) return;
-
   function changePhaseToDay(roomCode) {
     const room = rooms[roomCode];
     if (!room) return;
