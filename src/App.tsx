@@ -153,7 +153,7 @@ const AppContent: React.FC = () => {
   }, [socket, room?.code]);
 
   // Handle Create Room
-  const handleCreateRoom = (customCode: string, roleConfig: Record<string, number>, playerNamesText: string) => {
+  const handleCreateRoom = (customCode: string, roleConfig: Record<string, number>, playerNamesText: string, isAutoHost: boolean = false) => {
     if (!socket) return;
 
     const parsedNames = playerNamesText
@@ -161,9 +161,9 @@ const AppContent: React.FC = () => {
       .map(s => s.trim())
       .filter(Boolean);
 
-    const hostName = parsedNames[0] || 'Quản trò (Host)';
+    const hostName = parsedNames[0] || 'Người tạo phòng';
 
-    socket.emit('create_room', { customCode, roleConfig, hostName, initialPlayerNames: parsedNames }, (res: any) => {
+    socket.emit('create_room', { customCode, roleConfig, hostName, initialPlayerNames: parsedNames, isAutoHost }, (res: any) => {
       if (res.success) {
         setRoom(res.room);
         const meHost = res.room.players.find((p: any) => p.socketId === socket.id || p.isHost);

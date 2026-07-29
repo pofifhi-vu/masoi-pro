@@ -8,7 +8,7 @@ import { ALL_ROLES, PRESET_CONFIGS } from '../constants/roles';
 import { RoleDef } from '../types/game';
 
 interface CreateRoomViewProps {
-  onCreateRoom: (customCode: string, roleConfig: Record<string, number>, playerNamesText: string) => void;
+  onCreateRoom: (customCode: string, roleConfig: Record<string, number>, playerNamesText: string, isAutoHost: boolean) => void;
   onBackToHome: () => void;
 }
 
@@ -22,6 +22,7 @@ export const CreateRoomView: React.FC<CreateRoomViewProps> = ({ onCreateRoom, on
   const [customRoomCode, setCustomRoomCode] = useState<string>('');
   const [showCustomCodeMenu, setShowCustomCodeMenu] = useState<boolean>(false);
   const [showPresetsMenu, setShowPresetsMenu] = useState<boolean>(false);
+  const [isAutoHost, setIsAutoHost] = useState<boolean>(false);
 
   const renderRoleIcon = (iconName: string, faction: string) => {
     const colorMap: Record<string, string> = {
@@ -75,7 +76,7 @@ export const CreateRoomView: React.FC<CreateRoomViewProps> = ({ onCreateRoom, on
   const totalRoles = useMemo(() => Object.values(roleCounts).reduce((a, b) => a + b, 0), [roleCounts]);
 
   const handleCreateSubmit = () => {
-    onCreateRoom(customRoomCode, roleCounts, '');
+    onCreateRoom(customRoomCode, roleCounts, '', isAutoHost);
   };
 
   const villagerRoles = ALL_ROLES.filter(r => r.faction === 'VILLAGER');

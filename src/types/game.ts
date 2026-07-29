@@ -42,6 +42,18 @@ export interface RoomState {
   nightLogs: string[];
   spectatorLogs: string[];
   
+  // Trạng thái Tự Động Quản Trò (Auto-Host)
+  isAutoHost?: boolean;
+  phaseTimer?: {
+    endTime: number;
+    duration: number;
+  };
+  autoHostState?: {
+    isVotingTime: boolean;
+    nightRolesQueue: string[];
+    currentQueueIndex: number;
+  };
+  
   // Trạng thái các role đặc biệt
   coupledPlayers?: string[];
   silencedPlayerIds?: string[];

@@ -34,6 +34,22 @@ export const GameView: React.FC<GameViewProps> = ({
   const [myDayVote, setMyDayVote] = useState<string>('');
   const [playerLeftToast, setPlayerLeftToast] = useState<string | null>(null);
   const [speakingPlayers, setSpeakingPlayers] = useState<Record<string, boolean>>({});
+  const [phaseTimeLeft, setPhaseTimeLeft] = useState<number | null>(null);
+
+  useEffect(() => {
+    let interval: any;
+    if (room.phaseTimer && room.phaseTimer.endTime) {
+      const updateTimer = () => {
+        const remaining = Math.max(0, Math.floor((room.phaseTimer!.endTime - Date.now()) / 1000));
+        setPhaseTimeLeft(remaining);
+      };
+      updateTimer();
+      interval = setInterval(updateTimer, 1000);
+    } else {
+      setPhaseTimeLeft(null);
+    }
+    return () => clearInterval(interval);
+  }, [room.phaseTimer]);
 
   useEffect(() => {
     const handleSpeaking = (e: any) => {
@@ -248,6 +264,14 @@ export const GameView: React.FC<GameViewProps> = ({
               Phòng: <span className="font-mono text-purple-300 font-bold">{room.code}</span>
             </p>
           </div>
+          {phaseTimeLeft !== null && (
+            <div className="ml-4 flex flex-col items-center justify-center p-2 rounded-xl bg-purple-500/10 border border-purple-500/20">
+              <span className="text-[10px] font-bold uppercase text-purple-300">Thời gian</span>
+              <span className={`text-lg font-black font-mono ${phaseTimeLeft <= 5 ? 'text-rose-400 animate-pulse' : 'text-white'}`}>
+                {phaseTimeLeft}s
+              </span>
+            </div>
+          )}
         </div>
 
         <button
@@ -300,11 +324,11 @@ export const GameView: React.FC<GameViewProps> = ({
 
         {/* Main Section */}
         <div className={`${
-          isHost
+          isHost && !room.isAutoHost
             ? (activeActionRole ? 'lg:col-span-7' : 'lg:col-span-12')
             : (activeActionRole ? 'lg:col-span-7' : 'lg:col-span-12')
         } flex flex-col gap-5`}>
-          {isHost ? (
+          {(isHost && !room.isAutoHost) ? (
             /* ─── HOST ADMIN PANEL ─── */
             <div className="glass-panel rounded-2xl p-4 sm:p-5 flex flex-col gap-4 sm:gap-5 animate-slide-up" style={{ animationDelay: '0.1s' }}>
               <div className="flex items-center justify-between border-b border-white/[0.06] pb-3 sm:pb-4 flex-wrap gap-2 sm:gap-3">
@@ -487,7 +511,7 @@ export const GameView: React.FC<GameViewProps> = ({
               </div>
 
               {/* Day Voting */}
-              {room.gameState === 'DAY' && currentPlayer?.isAlive && (
+              {room.gameState === 'DAY' && currentPlayer?.isAlive && (!room.isAutoHost || room.autoHostState?.isVotingTime) && (
                 <div className="p-4 bg-gradient-to-r from-amber-500/[0.04] to-purple-500/[0.04] border border-amber-500/15 rounded-xl">
                   <h3 className="text-xs font-bold text-amber-300 uppercase tracking-wider mb-2 flex items-center gap-1.5">
                     <Vote className="w-4 h-4" />

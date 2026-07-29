@@ -8,6 +8,7 @@ import crypto from 'crypto';
 import { fileURLToPath } from 'url';
 import jwt from 'jsonwebtoken';
 import { ALL_ROLES } from './shared/roles.js';
+import { startAutoNight, onAutoPlayerAction, startAutoDayVoting, onAutoPlayerVote, stopAutoHost } from './autoHostEngine.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
@@ -84,7 +85,7 @@ io.on('connection', (socket) => {
   });
 
   // Create or update room configuration
-  socket.on('create_room', ({ customCode, roleConfig, hostName, initialPlayerNames }, callback) => {
+  socket.on('create_room', ({ customCode, roleConfig, hostName, initialPlayerNames, isAutoHost }, callback) => {
     let roomCode = customCode ? customCode.trim().toLowerCase().replace(/[^a-z0-9_-]/g, '') : '';
     if (!roomCode) {
       roomCode = generateRandomCode().toLowerCase();
@@ -107,10 +108,14 @@ io.on('connection', (socket) => {
         dayVotes: {},
         nightLogs: [],
         spectatorLogs: [],
-        gameHistory: []
+        gameHistory: [],
+        isAutoHost: !!isAutoHost,
+        phaseTimer: undefined,
+        autoHostState: undefined
       };
     } else {
       rooms[roomCode].hostSocketId = socket.id;
+      rooms[roomCode].isAutoHost = !!isAutoHost;
       if (roleConfig) rooms[roomCode].roleConfig = roleConfig;
     }
 
@@ -124,7 +129,7 @@ io.on('connection', (socket) => {
             name: trimmed,
             isHost: idx === 0,
             isAlive: true,
-            role: idx === 0 ? 'QUAN_TRO' : null,
+            role: (idx === 0 && !isAutoHost) ? 'QUAN_TRO' : null,
             connected: true,
             audioState: {
               mic: true,
@@ -177,7 +182,7 @@ io.on('connection', (socket) => {
         name: cleanName || (isHost ? 'Quản trò (Host)' : `Người chơi ${room.players.length + 1}`),
         isHost: isHost,
         isAlive: true,
-        role: isHost ? 'QUAN_TRO' : null,
+        role: (isHost && !room.isAutoHost) ? 'QUAN_TRO' : null,
         connected: true,
         audioState: {
           mic: true,
@@ -217,12 +222,12 @@ io.on('connection', (socket) => {
       return callback({ success: false, message: 'Vui lòng chọn ít nhất 1 vai trò trước khi chia bài!' });
     }
 
-    const playingMembers = room.players.filter(p => !p.isHost);
+    const playingMembers = room.isAutoHost ? room.players : room.players.filter(p => !p.isHost);
 
     if (playingMembers.length !== totalRolesRequired) {
       return callback({
         success: false,
-        message: `Số người chơi trong phòng (${playingMembers.length}) chưa đủ so với tổng số vai trò đã chọn (${totalRolesRequired})! (Quản trò làm Host điều hành, không nhận bài).`
+        message: `Số người chơi tham gia (${playingMembers.length}) chưa đủ so với tổng số vai trò đã chọn (${totalRolesRequired})!`
       });
     }
 
@@ -232,10 +237,12 @@ io.on('connection', (socket) => {
       player.isAlive = true;
     });
 
-    const hostPlayer = room.players.find(p => p.isHost);
-    if (hostPlayer) {
-      hostPlayer.role = 'QUAN_TRO';
-      hostPlayer.isAlive = true;
+    if (!room.isAutoHost) {
+      const hostPlayer = room.players.find(p => p.isHost);
+      if (hostPlayer) {
+        hostPlayer.role = 'QUAN_TRO';
+        hostPlayer.isAlive = true;
+      }
     }
 
     room.gameState = 'NIGHT';
@@ -255,6 +262,10 @@ io.on('connection', (socket) => {
     });
 
     callback({ success: true });
+
+    if (room.isAutoHost) {
+      setTimeout(() => startAutoNight(room, io, changePhaseToDay), 1000);
+    }
   });
 
   // Host calls role in Night Phase
@@ -373,6 +384,10 @@ io.on('connection', (socket) => {
     }
 
     io.to(roomCode).emit('room_updated', room);
+    
+    if (room.isAutoHost) {
+      onAutoPlayerAction(room, io, changePhaseToDay);
+    }
   });
 
   // Host changes Mic Target Channel
@@ -404,15 +419,21 @@ io.on('connection', (socket) => {
     const msg = `${getFormattedTimestamp()} 🗳️ [BẦU CHỌN BAN NGÀY] ${voter.name} đã bỏ phiếu.`;
     const hostMsg = `${getFormattedTimestamp()} 🗳️ [BẦU CHỌN BAN NGÀY] ${voter.name} bỏ phiếu cho: ${targetLabel}`;
 
-    room.nightLogs.push(hostMsg);
-    room.spectatorLogs.push(msg);
-    io.to(roomCode).emit('room_updated', room);
+    if (!room.isAutoHost) {
+      room.nightLogs.push(hostMsg);
+      room.spectatorLogs.push(msg);
+      io.to(roomCode).emit('room_updated', room);
+    } else {
+      // Ẩn danh lúc đang đếm ngược
+      room.spectatorLogs.push(msg);
+      io.to(roomCode).emit('room_updated', room);
+      onAutoPlayerVote(room, io, (r, i) => executeVoteResult(r.code));
+    }
   });
 
-  // Host executes top voted result
-  socket.on('host_execute_vote_result', ({ roomCode }) => {
+  function executeVoteResult(roomCode) {
     const room = rooms[roomCode];
-    if (!room || room.hostSocketId !== socket.id || !room.dayVotes) return;
+    if (!room || !room.dayVotes) return;
 
     const counts = {};
     Object.values(room.dayVotes).forEach(target => {
@@ -445,6 +466,7 @@ io.on('connection', (socket) => {
           room.nightLogs.push(jesterMsg);
           room.spectatorLogs.push(jesterMsg);
           io.to(roomCode).emit('room_updated', room);
+          if (room.isAutoHost) stopAutoHost(room);
           return;
         }
 
@@ -485,8 +507,179 @@ io.on('connection', (socket) => {
     }
 
     room.dayVotes = {};
-    io.to(roomCode).emit('room_updated', room);
+    
+    if (room.isAutoHost) {
+      room.autoHostState.isVotingTime = false;
+      room.phaseTimer = undefined;
+      room.gameState = 'NIGHT';
+      const nightStartMsg = `${getFormattedTimestamp()} 🌙 Màn đêm đã buông xuống... Tất cả mọi người đi ngủ!`;
+      room.nightLogs.push(nightStartMsg);
+      room.spectatorLogs.push(nightStartMsg);
+      io.to(roomCode).emit('phase_changed', { gameState: 'NIGHT', room });
+      io.to(roomCode).emit('room_updated', room);
+      
+      // Bắt đầu lại vòng đêm
+      setTimeout(() => startAutoNight(room, io, changePhaseToDay), 3000);
+    } else {
+      io.to(roomCode).emit('room_updated', room);
+    }
+  }
+
+  // Host executes top voted result
+  socket.on('host_execute_vote_result', ({ roomCode }) => {
+    const room = rooms[roomCode];
+    if (!room || room.hostSocketId !== socket.id || !room.dayVotes) return;
+    executeVoteResult(roomCode);
   });
+
+  // Host changes phase (Night -> Day / Day -> Night)
+  socket.on('host_change_phase', ({ roomCode, nextPhase }) => {
+    const room = rooms[roomCode];
+    if (!room || room.hostSocketId !== socket.id) return;
+
+  function changePhaseToDay(roomCode) {
+    const room = rooms[roomCode];
+    if (!room) return;
+
+    const wolfAction = room.nightActions['MA_SOI'] || room.nightActions['SOI_BANG_TRONG'] || room.nightActions['SOI_DU_THOI'];
+    const guardAction = room.nightActions['BAO_VE'];
+    const witchAction = room.nightActions['PHU_THUY'];
+    const silencerAction = room.nightActions['PHAP_SU_CAM_LANG'] || room.nightActions['SOI_CAM_LANG'];
+    const hunterAction = room.nightActions['THO_SAN'];
+
+    const wolfTargetId = wolfAction ? wolfAction.targetPlayerId : null;
+    const guardTargetId = guardAction ? guardAction.targetPlayerId : null;
+    const witchSave = witchAction && witchAction.note === 'SAVE';
+    const witchPoisonId = witchAction && witchAction.targetPlayerId ? witchAction.targetPlayerId : null;
+
+    // Xử lý Thợ Săn (Lưu mục tiêu)
+    if (hunterAction && hunterAction.targetPlayerId) {
+      room.hunterTargetId = hunterAction.targetPlayerId;
+    }
+
+    // Xử lý Câm Lặng
+    if (silencerAction && silencerAction.targetPlayerId) {
+      room.silencedPlayerIds = [silencerAction.targetPlayerId];
+      const silencedPlayer = room.players.find(p => p.id === silencerAction.targetPlayerId);
+      if (silencedPlayer) {
+        silencedPlayer.audioState.mic = false;
+        io.to(roomCode).emit('player_audio_updated', { playerId: silencedPlayer.id, audioState: silencedPlayer.audioState });
+        room.nightLogs.push(`${getFormattedTimestamp()} 🤐 [SỰ KIỆN] Phép thuật câm lặng đã giáng xuống! Có người đã bị khóa miệng vào ngày hôm nay.`);
+      }
+    } else {
+      room.silencedPlayerIds = [];
+    }
+
+    const casualties = new Set();
+
+    // Check Werewolf bite target
+    if (wolfTargetId) {
+      const bittenPlayer = room.players.find(p => p.id === wolfTargetId);
+
+      // KE_BI_SOI_NGUYEN: nếu bị sói cắn thì hóa thành sói thay vì chết!
+      if (bittenPlayer && bittenPlayer.role === 'KE_BI_SOI_NGUYEN') {
+        bittenPlayer.role = 'MA_SOI';
+        const nguyenMsg = `${getFormattedTimestamp()} 🔴 [SỰ KIỆN] KẺ bị sói nguyền đã biến thành Ma Sói sau khi bị cắn!`;
+        room.nightLogs.push(nguyenMsg);
+        io.to(bittenPlayer.socketId).emit('your_secret_role', { role: 'MA_SOI' });
+      } else {
+        const isProtected = (wolfTargetId === guardTargetId) || witchSave;
+        if (!isProtected) {
+          // Già làng: Vết cắn đầu tiên không chết
+          if (bittenPlayer && bittenPlayer.role === 'GIA_LANG' && !room.elderBitten) {
+            room.elderBitten = true;
+            room.nightLogs.push(`${getFormattedTimestamp()} 🛡️ [SỰ KIỆN] Ma sói đã cắn trúng Già Làng, nhưng nhờ sinh lực dồi dào, Già Làng vẫn sống sót qua đêm nay!`);
+          } else {
+            casualties.add(wolfTargetId);
+          }
+        } else if (witchSave) {
+          const saveMsg = `${getFormattedTimestamp()} ✨ Phù thủy đã sử dụng thuốc cứu mạng!`;
+          room.nightLogs.push(saveMsg);
+        }
+      }
+    }
+
+    // Check Witch poison target
+    if (witchPoisonId) {
+      casualties.add(witchPoisonId);
+    }
+
+    // Apply death status to casualties ONLY NOW (Morning announcement!)
+    const deadNames = [];
+    const deadIds = Array.from(casualties);
+
+    for (let i = 0; i < deadIds.length; i++) {
+      const victimId = deadIds[i];
+      const victim = room.players.find(p => p.id === victimId);
+      
+      if (victim && victim.isAlive) {
+        victim.isAlive = false;
+        deadNames.push(victim.name);
+
+        // Thần tình yêu: Kéo theo người kia chết
+        if (room.coupledPlayers && room.coupledPlayers.includes(victim.id)) {
+          const partnerId = room.coupledPlayers.find(id => id !== victim.id);
+          if (partnerId && !deadIds.includes(partnerId)) {
+            const partner = room.players.find(p => p.id === partnerId);
+            if (partner && partner.isAlive) {
+              partner.isAlive = false;
+              deadNames.push(partner.name);
+              room.nightLogs.push(`${getFormattedTimestamp()} 💔 [THẢM KỊCH] ${partner.name} đã chết vì quá đau buồn khi người tình ${victim.name} qua đời!`);
+              room.spectatorLogs.push(`${getFormattedTimestamp()} 💔 [THẢM KỊCH] ${partner.name} đã chết vì quá đau buồn khi người tình ${victim.name} qua đời!`);
+              deadIds.push(partnerId); // Thêm vào mảng để lặp (mặc dù đã gán isAlive=false rồi)
+            }
+          }
+        }
+
+        // Thợ săn: Kéo theo mục tiêu đã chọn
+        if (victim.role === 'THO_SAN' && room.hunterTargetId) {
+          const huntedId = room.hunterTargetId;
+          if (!deadIds.includes(huntedId)) {
+            const hunted = room.players.find(p => p.id === huntedId);
+            if (hunted && hunted.isAlive) {
+              hunted.isAlive = false;
+              deadNames.push(hunted.name);
+              room.nightLogs.push(`${getFormattedTimestamp()} 🔫 [THẢM KỊCH] Thợ săn ${victim.name} trước khi chết đã bắn hạ ${hunted.name}!`);
+              room.spectatorLogs.push(`${getFormattedTimestamp()} 🔫 [THẢM KỊCH] Thợ săn ${victim.name} bắn chết ${hunted.name}!`);
+              deadIds.push(huntedId); // Để lặp tiếp nếu người này lại nằm trong cặp tình yêu
+            }
+          }
+        }
+      }
+    }
+
+    // Morning Announcement Message
+    let morningMsg = '';
+    if (deadNames.length > 0) {
+      morningMsg = `${getFormattedTimestamp()} ☀️ [BAN NGÀY] Buổi sáng đã đến! Đêm qua, người chơi ${deadNames.join(', ')} đã bị hạ gục 💀`;
+    } else {
+      morningMsg = `${getFormattedTimestamp()} ☀️ [BAN NGÀY] Buổi sáng đã đến! Đêm qua là một đêm bình yên, không ai qua đời 💚`;
+    }
+
+    room.nightLogs.push(morningMsg);
+    room.spectatorLogs.push(morningMsg);
+
+    room.currentCalledRole = null;
+    room.dayVotes = {};
+    room.nightActions = {};
+    room.gameState = 'DAY';
+    
+    io.to(roomCode).emit('phase_changed', { gameState: 'DAY', room });
+    io.to(roomCode).emit('room_updated', room);
+    
+    if (room.isAutoHost) {
+      // Bắt đầu 60s thảo luận ban ngày trước khi vote
+      room.phaseTimer = { endTime: Date.now() + 60000, duration: 60000 };
+      const discussMsg = `${getFormattedTimestamp()} 💬 Bắt đầu thảo luận ban ngày (60s).`;
+      room.nightLogs.push(discussMsg);
+      room.spectatorLogs.push(discussMsg);
+      io.to(roomCode).emit('room_updated', room);
+      
+      setTimeout(() => {
+        startAutoDayVoting(room, io, (r, i) => executeVoteResult(r.code));
+      }, 60000);
+    }
+  }
 
   // Host changes phase (Night -> Day / Day -> Night)
   socket.on('host_change_phase', ({ roomCode, nextPhase }) => {
@@ -495,127 +688,7 @@ io.on('connection', (socket) => {
 
     // RESOLVE NIGHT CASUALTIES ONLY WHEN TRANSITIONING FROM NIGHT TO DAY!
     if (room.gameState === 'NIGHT' && nextPhase === 'DAY') {
-      const wolfAction = room.nightActions['MA_SOI'] || room.nightActions['SOI_BANG_TRONG'] || room.nightActions['SOI_DU_THOI'];
-      const guardAction = room.nightActions['BAO_VE'];
-      const witchAction = room.nightActions['PHU_THUY'];
-      const silencerAction = room.nightActions['PHAP_SU_CAM_LANG'] || room.nightActions['SOI_CAM_LANG'];
-      const hunterAction = room.nightActions['THO_SAN'];
-
-      const wolfTargetId = wolfAction ? wolfAction.targetPlayerId : null;
-      const guardTargetId = guardAction ? guardAction.targetPlayerId : null;
-      const witchSave = witchAction && witchAction.note === 'SAVE';
-      const witchPoisonId = witchAction && witchAction.targetPlayerId ? witchAction.targetPlayerId : null;
-
-      // Xử lý Thợ Săn (Lưu mục tiêu)
-      if (hunterAction && hunterAction.targetPlayerId) {
-        room.hunterTargetId = hunterAction.targetPlayerId;
-      }
-
-      // Xử lý Câm Lặng
-      if (silencerAction && silencerAction.targetPlayerId) {
-        room.silencedPlayerIds = [silencerAction.targetPlayerId];
-        const silencedPlayer = room.players.find(p => p.id === silencerAction.targetPlayerId);
-        if (silencedPlayer) {
-          silencedPlayer.audioState.mic = false;
-          io.to(roomCode).emit('player_audio_updated', { playerId: silencedPlayer.id, audioState: silencedPlayer.audioState });
-          room.nightLogs.push(`${getFormattedTimestamp()} 🤐 [SỰ KIỆN] Phép thuật câm lặng đã giáng xuống! Có người đã bị khóa miệng vào ngày hôm nay.`);
-        }
-      } else {
-        room.silencedPlayerIds = [];
-      }
-
-      const casualties = new Set();
-
-      // Check Werewolf bite target
-      if (wolfTargetId) {
-        const bittenPlayer = room.players.find(p => p.id === wolfTargetId);
-
-        // KE_BI_SOI_NGUYEN: nếu bị sói cắn thì hóa thành sói thay vì chết!
-        if (bittenPlayer && bittenPlayer.role === 'KE_BI_SOI_NGUYEN') {
-          bittenPlayer.role = 'MA_SOI';
-          const nguyenMsg = `${getFormattedTimestamp()} 🔴 [SỰ KIỆN] KẺ bị sói nguyền đã biến thành Ma Sói sau khi bị cắn!`;
-          room.nightLogs.push(nguyenMsg);
-          io.to(bittenPlayer.socketId).emit('your_secret_role', { role: 'MA_SOI' });
-        } else {
-          const isProtected = (wolfTargetId === guardTargetId) || witchSave;
-          if (!isProtected) {
-            // Già làng: Vết cắn đầu tiên không chết
-            if (bittenPlayer && bittenPlayer.role === 'GIA_LANG' && !room.elderBitten) {
-              room.elderBitten = true;
-              room.nightLogs.push(`${getFormattedTimestamp()} 🛡️ [SỰ KIỆN] Ma sói đã cắn trúng Già Làng, nhưng nhờ sinh lực dồi dào, Già Làng vẫn sống sót qua đêm nay!`);
-            } else {
-              casualties.add(wolfTargetId);
-            }
-          } else if (witchSave) {
-            const saveMsg = `${getFormattedTimestamp()} ✨ Phù thủy đã sử dụng thuốc cứu mạng!`;
-            room.nightLogs.push(saveMsg);
-          }
-        }
-      }
-
-      // Check Witch poison target
-      if (witchPoisonId) {
-        casualties.add(witchPoisonId);
-      }
-
-      // Apply death status to casualties ONLY NOW (Morning announcement!)
-      const deadNames = [];
-      const deadIds = Array.from(casualties);
-
-      for (let i = 0; i < deadIds.length; i++) {
-        const victimId = deadIds[i];
-        const victim = room.players.find(p => p.id === victimId);
-        
-        if (victim && victim.isAlive) {
-          victim.isAlive = false;
-          deadNames.push(victim.name);
-
-          // Thần tình yêu: Kéo theo người kia chết
-          if (room.coupledPlayers && room.coupledPlayers.includes(victim.id)) {
-            const partnerId = room.coupledPlayers.find(id => id !== victim.id);
-            if (partnerId && !deadIds.includes(partnerId)) {
-              const partner = room.players.find(p => p.id === partnerId);
-              if (partner && partner.isAlive) {
-                partner.isAlive = false;
-                deadNames.push(partner.name);
-                room.nightLogs.push(`${getFormattedTimestamp()} 💔 [THẢM KỊCH] ${partner.name} đã chết vì quá đau buồn khi người tình ${victim.name} qua đời!`);
-                room.spectatorLogs.push(`${getFormattedTimestamp()} 💔 [THẢM KỊCH] ${partner.name} đã chết vì quá đau buồn khi người tình ${victim.name} qua đời!`);
-                deadIds.push(partnerId); // Thêm vào mảng để lặp (mặc dù đã gán isAlive=false rồi)
-              }
-            }
-          }
-
-          // Thợ săn: Kéo theo mục tiêu đã chọn
-          if (victim.role === 'THO_SAN' && room.hunterTargetId) {
-            const huntedId = room.hunterTargetId;
-            if (!deadIds.includes(huntedId)) {
-              const hunted = room.players.find(p => p.id === huntedId);
-              if (hunted && hunted.isAlive) {
-                hunted.isAlive = false;
-                deadNames.push(hunted.name);
-                room.nightLogs.push(`${getFormattedTimestamp()} 🔫 [THẢM KỊCH] Thợ săn ${victim.name} trước khi chết đã bắn hạ ${hunted.name}!`);
-                room.spectatorLogs.push(`${getFormattedTimestamp()} 🔫 [THẢM KỊCH] Thợ săn ${victim.name} bắn chết ${hunted.name}!`);
-                deadIds.push(huntedId); // Để lặp tiếp nếu người này lại nằm trong cặp tình yêu
-              }
-            }
-          }
-        }
-      }
-
-      // Morning Announcement Message
-      let morningMsg = '';
-      if (deadNames.length > 0) {
-        morningMsg = `${getFormattedTimestamp()} ☀️ [BAN NGÀY] Buổi sáng đã đến! Đêm qua, người chơi ${deadNames.join(', ')} đã bị hạ gục 💀`;
-      } else {
-        morningMsg = `${getFormattedTimestamp()} ☀️ [BAN NGÀY] Buổi sáng đã đến! Đêm qua là một đêm bình yên, không ai qua đời 💚`;
-      }
-
-      room.nightLogs.push(morningMsg);
-      room.spectatorLogs.push(morningMsg);
-
-      room.currentCalledRole = null;
-      room.dayVotes = {};
-      room.nightActions = {};
+      changePhaseToDay(roomCode);
     } else if (nextPhase === 'NIGHT') {
       const nightStartMsg = `${getFormattedTimestamp()} 🌙 Màn đêm đã buông xuống... Tất cả mọi người đi ngủ!`;
       room.nightLogs.push(nightStartMsg);
