@@ -546,8 +546,8 @@ io.on('connection', (socket) => {
 
     const wolfTargetId = wolfAction ? wolfAction.targetPlayerId : null;
     const guardTargetId = guardAction ? guardAction.targetPlayerId : null;
-    const witchSave = witchAction && witchAction.note === 'SAVE';
-    const witchPoisonId = witchAction && witchAction.targetPlayerId ? witchAction.targetPlayerId : null;
+    const witchSaveTargetId = witchAction && witchAction.note === 'SAVE' ? witchAction.targetPlayerId : null;
+    const witchPoisonId = witchAction && witchAction.note === 'POISON' ? witchAction.targetPlayerId : null;
 
     // Xử lý Thợ Săn (Lưu mục tiêu)
     if (hunterAction && hunterAction.targetPlayerId) {
@@ -580,7 +580,10 @@ io.on('connection', (socket) => {
         room.nightLogs.push(nguyenMsg);
         io.to(bittenPlayer.socketId).emit('your_secret_role', { role: 'MA_SOI' });
       } else {
-        const isProtected = (wolfTargetId === guardTargetId) || witchSave;
+        const isProtectedByGuard = (wolfTargetId === guardTargetId);
+        const isProtectedByWitch = witchSaveTargetId && (wolfTargetId === witchSaveTargetId || witchSaveTargetId === 'SAVE_ANY');
+        const isProtected = isProtectedByGuard || isProtectedByWitch;
+
         if (!isProtected) {
           // Già làng: Vết cắn đầu tiên không chết
           if (bittenPlayer && bittenPlayer.role === 'GIA_LANG' && !room.elderBitten) {
@@ -589,9 +592,12 @@ io.on('connection', (socket) => {
           } else {
             casualties.add(wolfTargetId);
           }
-        } else if (witchSave) {
-          const saveMsg = `${getFormattedTimestamp()} ✨ Phù thủy đã sử dụng thuốc cứu mạng!`;
+        } else if (isProtectedByWitch) {
+          const saveMsg = `${getFormattedTimestamp()} ✨ Phù thủy đã sử dụng thuốc cứu mạng bảo vệ ${bittenPlayer ? bittenPlayer.name : 'người chơi'}!`;
           room.nightLogs.push(saveMsg);
+        } else if (isProtectedByGuard) {
+          const guardMsg = `${getFormattedTimestamp()} 🛡️ Bảo vệ đã bảo vệ thành công ${bittenPlayer ? bittenPlayer.name : 'người chơi'}!`;
+          room.nightLogs.push(guardMsg);
         }
       }
     }

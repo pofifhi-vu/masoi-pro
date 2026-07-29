@@ -687,21 +687,26 @@ export const GameView: React.FC<GameViewProps> = ({
 
                         {/* SAVE */}
                         <button
-                          onClick={() => setWitchOption('SAVE')}
-                          disabled={!victimPlayer}
-                          className="p-4 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.04] hover:bg-emerald-500/10 text-left transition-all group disabled:opacity-40 disabled:cursor-not-allowed"
+                          onClick={() => {
+                            setWitchOption('SAVE');
+                            if (victimPlayer) setSelectedTargetId(victimPlayer.id);
+                          }}
+                          className="p-4 rounded-xl border border-emerald-500/25 bg-emerald-500/[0.04] hover:bg-emerald-500/10 text-left transition-all group"
                         >
                           <div className="text-sm font-bold text-emerald-300 flex items-center gap-2 mb-1">
                             <Heart className="w-4 h-4" /> Dùng thuốc cứu mạng 💊
                           </div>
                           <div className="text-[11px] text-[#6a6580]">
-                            {victimPlayer ? `Cứu ${victimPlayer.name} khỏi cái chết đêm nay.` : 'Không có nạn nhân bị cắn để cứu.'}
+                            Cứu bất kỳ 1 người chơi nào bạn chọn khỏi cái chết đêm nay. Nhấn để chọn mục tiêu.
                           </div>
                         </button>
 
                         {/* POISON */}
                         <button
-                          onClick={() => setWitchOption('POISON')}
+                          onClick={() => {
+                            setWitchOption('POISON');
+                            setSelectedTargetId('');
+                          }}
                           className="p-4 rounded-xl border border-rose-500/25 bg-rose-500/[0.04] hover:bg-rose-500/10 text-left transition-all group"
                         >
                           <div className="text-sm font-bold text-rose-300 flex items-center gap-2 mb-1">
@@ -720,24 +725,37 @@ export const GameView: React.FC<GameViewProps> = ({
                       </>
                     )}
 
-                    {/* Bước 2a: Xác nhận dùng thuốc CỨU */}
+                    {/* Bước 2a: Chọn người dùng thuốc CỨU */}
                     {witchOption === 'SAVE' && (
                       <div className="flex flex-col gap-3 p-4 rounded-xl bg-emerald-500/[0.06] border border-emerald-500/25">
                         <div className="flex items-center gap-2">
                           <Heart className="w-4 h-4 text-emerald-400" />
-                          <span className="text-sm font-bold text-emerald-300">Thuốc cứu mạng 💊</span>
+                          <span className="text-sm font-bold text-emerald-300">Thuốc cứu mạng 💊 — Chọn mục tiêu</span>
                         </div>
                         <p className="text-[11px] text-[#8a85a0] leading-relaxed">
-                          Xác nhận dùng thuốc cứu để cứu sống <strong className="text-emerald-300">{victimPlayer?.name || 'mục tiêu'}</strong>.
+                          Chọn 1 người chơi bạn muốn trao thuốc cứu (mặc định đã chọn nạn nhân bị Sói cắn nếu có):
                         </p>
+                        <select
+                          value={selectedTargetId}
+                          onChange={e => setSelectedTargetId(e.target.value)}
+                          className="w-full p-3 bg-white/[0.03] border border-emerald-500/30 rounded-xl text-sm text-white outline-none focus:border-emerald-500/60 transition-all"
+                        >
+                          <option value="">-- Chọn người chơi để dùng thuốc cứu --</option>
+                          {room.players.filter(p => p.isAlive && (room.isAutoHost || !p.isHost)).map(p => (
+                            <option key={p.id} value={p.id}>
+                              {p.name} {victimPlayer && p.id === victimPlayer.id ? '(Nạn nhân bị cắn 🐺)' : ''}
+                            </option>
+                          ))}
+                        </select>
                         <button
                           onClick={() => handleActionSubmit('NIGHT_ACTION')}
-                          className="py-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-sm font-bold text-emerald-200 hover:bg-emerald-500/30 transition-all"
+                          disabled={!selectedTargetId}
+                          className="py-3 rounded-xl bg-emerald-500/20 border border-emerald-500/40 text-sm font-bold text-emerald-200 hover:bg-emerald-500/30 transition-all disabled:opacity-40 disabled:cursor-not-allowed"
                         >
-                          ✨ Xác nhận dùng thuốc cứu {victimPlayer?.name}
+                          ✨ Xác nhận dùng thuốc cứu {selectedTargetId ? room.players.find(p => p.id === selectedTargetId)?.name : '...'}
                         </button>
                         <button
-                          onClick={() => setWitchOption('NONE')}
+                          onClick={() => { setWitchOption('NONE'); setSelectedTargetId(''); }}
                           className="text-[11px] text-[#5a5572] hover:text-white transition-colors text-center underline"
                         >
                           ← Quay lại chọn lại
