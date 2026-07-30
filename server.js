@@ -509,6 +509,8 @@ io.on('connection', (socket) => {
 
     room.dayVotes = {};
     
+    if (checkWinCondition(room, io)) return;
+    
     if (room.isAutoHost) {
       room.autoHostState.isVotingTime = false;
       room.phaseTimer = undefined;
@@ -665,6 +667,9 @@ io.on('connection', (socket) => {
     room.currentCalledRole = null;
     room.dayVotes = {};
     room.nightActions = {};
+
+    if (checkWinCondition(room, io)) return;
+
     room.gameState = 'DAY';
     
     io.to(roomCode).emit('phase_changed', { gameState: 'DAY', room });
@@ -726,6 +731,9 @@ io.on('connection', (socket) => {
       room.nightLogs.push(statusMsg);
       room.spectatorLogs.push(statusMsg);
       io.to(roomCode).emit('player_status_changed', { playerId, isAlive, room });
+
+      if (checkWinCondition(room, io)) return;
+
       io.to(roomCode).emit('room_updated', room);
     }
   });
@@ -887,6 +895,55 @@ io.on('connection', (socket) => {
       io.to(code).emit('room_updated', room);
     }
   });
+
+  function checkWinCondition(room, io) {
+    if (room.gameState === 'ENDED' || room.gameState === 'LOBBY') return false;
+
+    const alivePlayers = room.players.filter(p => p.isAlive && !p.isHost);
+    if (alivePlayers.length === 0) {
+      return endRoomGame(room, io, `${getFormattedTimestamp()} 🪦 [KẾT THÚC] Tất cả người chơi đã chết! Một kết cục bi thảm.`);
+    }
+
+    if (room.coupledPlayers && room.coupledPlayers.length === 2) {
+      const aliveIds = alivePlayers.map(p => p.id);
+      if (aliveIds.length === 2 && aliveIds.includes(room.coupledPlayers[0]) && aliveIds.includes(room.coupledPlayers[1])) {
+        return endRoomGame(room, io, `${getFormattedTimestamp()} 💘 [CẶP ĐÔI CHIẾN THẮNG] Tình yêu chiến thắng tất cả! Cặp đôi được Thần tình yêu ghép đã sống sót đến cuối cùng!`);
+      }
+    }
+
+    let wolfCount = 0;
+    let villagerCount = 0;
+    alivePlayers.forEach(p => {
+      const roleDef = ALL_ROLES.find(r => r.key === p.role);
+      if (roleDef && roleDef.faction === 'WEREWOLF') {
+        wolfCount++;
+      } else {
+        villagerCount++;
+      }
+    });
+
+    if (wolfCount === 0) {
+      return endRoomGame(room, io, `${getFormattedTimestamp()} 🏆 [DÂN LÀNG CHIẾN THẮNG] Tất cả Ma Sói đã bị tiêu diệt! Dân làng đã bảo vệ được ngôi làng bình yên!`);
+    }
+
+    if (wolfCount >= villagerCount) {
+      return endRoomGame(room, io, `${getFormattedTimestamp()} 🐺 [MA SÓI CHIẾN THẮNG] Lực lượng Ma Sói đã áp đảo số lượng Dân làng! Ngôi làng đã chìm trong bóng tối!`);
+    }
+
+    return false;
+  }
+
+  function endRoomGame(room, io, msg) {
+    room.gameState = 'ENDED';
+    room.currentCalledRole = null;
+    room.nightLogs.push(msg);
+    room.spectatorLogs.push(msg);
+    io.to(room.code).emit('room_updated', room);
+    if (room.isAutoHost) {
+      stopAutoHost(room);
+    }
+    return true;
+  }
 
   // Disconnect handler
   socket.on('disconnect', () => {
